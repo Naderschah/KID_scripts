@@ -1,0 +1,12 @@
+version:  '3'
+services:
+  base-notebook:
+      image: jupyter/base-notebook
+      user: root
+      build: .
+      volumes:
+        - /home/felix/KID_scripts:/home/KID/KID_scripts
+      ports:
+        - 8888:8888
+      container_name: KID
+      command: "start-notebook.sh"
