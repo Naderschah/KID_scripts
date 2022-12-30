@@ -52,7 +52,7 @@ def cloudcover_func(cloudcover_max, start_year,footprint_path):
     date_array = np.empty(shape=((maxx-minx)*scaler, scaler*(maxy-miny)),dtype='datetime64[ns]')
     date_array[:] = np.datetime64("NaT")
 
-
+    from suntime import Sun
     # Really inefficient need to find a better way of doing this
     for x in range(len(date_array)):
         for y in range(len(date_array[x])):
@@ -64,7 +64,16 @@ def cloudcover_func(cloudcover_max, start_year,footprint_path):
             # Grab dates
             # TODO: the below evaluates to nan for all where cloudcoverpercentage is not nan need to find out details before moving on
             if len(meta[bool_series].Date.dropna())>0 : 
-                date_array[x,y] = meta[bool_series].Date.dropna().min().to_numpy().astype('datetime64[ns]')
+                # Now we check if the date is a night time or daytime obsrevation
+                sun=Sun(lat,lon)
+                # Turn the Date (type datetime) column to type date 
+                dat = meta[bool_series].Date.dropna().apply(lambda x: x.date())
+                # Create second bool refering to the ordering of meta[bool_series].Date.dropna()
+                second_bool = dat.apply(lambda x: sun.get_local_sunset_time(x) < x < sun.get_local_sunrise_time(x))
+                # Check if something is left an move on
+                if len(meta[bool_series].Date.dropna()[second_bool])>0:
+                    date_array[x,y] = meta[bool_series].Date.dropna()[second_bool].dropna().min().to_numpy().astype('datetime64[ns]')
+            
             
 
     date_range = date_array.flatten()

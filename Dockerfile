@@ -8,5 +8,5 @@ RUN conda install --yes --file requirements.txt
 
 # Could not download over conda so until a solution is found keeping this seperate
 RUN conda install pip
-RUN /opt/conda/bin/pip install wktplot
+RUN /opt/conda/bin/pip install wktplot suntime
 
