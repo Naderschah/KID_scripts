@@ -186,7 +186,7 @@ class File_Handler:
     def __init__(self) -> None:
         # Define where images will be downlaoded
         now = datetime.datetime.now()
-        img_path = os.path.join(os.path.abspath('~'), now.strftime("%Y%m%d"))
+        img_path = os.path.join(os.path.abspath(""), now.strftime("%Y%m%d"))
         if not os.path.isdir(img_path):
             os.mkdir(img_path)
         else:
