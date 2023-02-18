@@ -34,12 +34,12 @@ def main():
     # Check time to start
     sun = suntime.Sun(config.location['longitude'], config.location['latitude'])
     start = sun.get_sunset_time()
-    end = sun.get_sunrise_time(datetime.now()+datetime.timedelta(days=1))
+    end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
 
-    while datetime.now()<start:
+    while datetime.datetime.now()<start:
         time.sleep(15*60) # 15 minutes 
 
-    while datetime.now()<end:
+    while datetime.datetime.now()<end:
         camera.capture_image_and_download()
         time.sleep(config.camera['Image_Frequency']*60)
         
@@ -185,7 +185,7 @@ class Camera_Handler_gphoto:
 class File_Handler:
     def __init__(self) -> None:
         # Define where images will be downlaoded
-        img_path = os.path.join(os.path.abspath('~'), datetime.now().strfrtime("%Y%m%d"))
+        img_path = os.path.join(os.path.abspath('~'), datetime.datetime.now().strfrtime("%Y%m%d"))
         if not os.path.isdir(img_path):
             os.mkdir(img_path)
         else:

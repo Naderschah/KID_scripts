@@ -15,7 +15,10 @@ TODO:
         We cant turn them off and on from the software - only works manual  
 
 
-
+Need to install
+fitrst run update upgrade
+gphoto
+pip3 install suntime
 
 
 gphoto behavior:
