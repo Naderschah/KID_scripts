@@ -185,7 +185,8 @@ class Camera_Handler_gphoto:
 class File_Handler:
     def __init__(self) -> None:
         # Define where images will be downlaoded
-        img_path = os.path.join(os.path.abspath('~'), datetime.datetime.now().strfrtime("%Y%m%d"))
+        now = datetime.datetime.now()
+        img_path = os.path.join(os.path.abspath('~'), now.strfrtime("%Y%m%d"))
         if not os.path.isdir(img_path):
             os.mkdir(img_path)
         else:
