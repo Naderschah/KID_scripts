@@ -65,8 +65,8 @@ class Camera_Handler_gphoto:
         config_subset.pop('Model')
         config_subset.pop('Brand')
         config_subset.pop('Image_Frequency')
-
-        self.set_all_config_entries(config_subset)
+        # TODO: uncomment below
+        #self.set_all_config_entries(config_subset)
 
         # Return camera internal settings for logging purposes
         self.get_camera_config()
@@ -160,7 +160,10 @@ class Camera_Handler_gphoto:
         """Sets all relevant config entries for imaging iteratively
         ------
         config_dict --> dictionary with Key=Configentry:value=Configvalue
-        """
+        """ # TODO; this wont work
+
+        config_dict['Shutter Speed'] = config_dict['Exposure']
+        config_dict['ISO Speed'] = config_dict['Exposure']
         for key, value in config_dict:
             self.set_config_entry(key,value)
         
