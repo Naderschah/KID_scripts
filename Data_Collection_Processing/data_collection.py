@@ -76,10 +76,7 @@ class Camera_Handler_gphoto:
 
         pass
 
-
-    
-
-    def find_camera():
+    def find_camera(self):
         """Uses gphoto2 cmd line to find port and information about the camera connected to the system
         FIXME: Here I assumed that none of the cameras use RS232 to connect as it was a standard from the 1960s this should not raise any issues, also assume only 1 camera
         """
@@ -96,7 +93,7 @@ class Camera_Handler_gphoto:
 
         return None
     
-    def get_all_files():
+    def get_all_files(self):
         """Retrieves all files on sd card"""
         result = subprocess.run(["gphoto2 --get-all-files"], capture_output=True)
         if result.returncode != 0:
@@ -106,7 +103,7 @@ class Camera_Handler_gphoto:
     
         return None
     
-    def delete_all_files():
+    def delete_all_files(self):
         """Deletes all files from sd card"""
         result = subprocess.run(["gphoto2 --delete-all-files"], capture_output=True)
         if result.returncode != 0:
@@ -116,7 +113,7 @@ class Camera_Handler_gphoto:
     
         return None
     
-    def capture_image():
+    def capture_image(self):
         """Captures an image with current settings"""
         result = subprocess.run(["gphoto2 --capture-image"], capture_output=True)
         if result.returncode != 0:
@@ -127,7 +124,7 @@ class Camera_Handler_gphoto:
         return None
         
     
-    def capture_image_and_download()
+    def capture_image_and_download(self):
         """Captures an image with current settings and download"""
         result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True)
         if result.returncode != 0:
@@ -138,7 +135,7 @@ class Camera_Handler_gphoto:
         return None
     
 
-    def get_camera_config()
+    def get_camera_config(self):
         """Returns camera internal configuration"""
 
         result = subprocess.run(["gphoto2 --list-all-config"], capture_output=True)
@@ -156,7 +153,7 @@ class Camera_Handler_gphoto:
         return None
     
     
-    def set_all_config_entries(config_dict):
+    def set_all_config_entries(self,config_dict):
         """Sets all relevant config entries for imaging iteratively
         ------
         config_dict --> dictionary with Key=Configentry:value=Configvalue
@@ -170,7 +167,7 @@ class Camera_Handler_gphoto:
         return None
 
 
-    def set_config_entry(entry, value):
+    def set_config_entry(self,entry, value):
         """Returns camera internal configuration"""
         result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True)
         if result.returncode != 0:
@@ -247,7 +244,7 @@ class Config_Handler:
         
         pass
 
-    def load_config(path):
+    def load_config(self,path):
         config = cfg.ConfigParser()
         config.read(path)
         return config
