@@ -223,7 +223,7 @@ class Pipeline_Handler:
 """Utility class to load and set config variables saved in INI formating using configparser, each attribute will be a dict containing the relevant data regarding each grouping"""
 class Config_Handler:
     def __init__(self, path) -> None:
-        print('Loading config from: {}'.format(path)
+        print('Loading config from: {}'.format(path))
         # Load the config
         config = self.load_config(path)
 
