@@ -205,9 +205,10 @@ class File_Handler:
             os.mkdir(img_path)
         else:
             # Alternative handlign if folder exists
-            if len(os.listdir(img_path))>1:
+            if len(os.listdir(img_path))>0:
                 img_path = img_path+"_2"
-                with open("dir_exists.txt") as warn_file:
+                os.mkdir(img_path)
+                with open(os.path.join(img_path,"dir_exists.txt"), 'w') as warn_file:
                     warn_file.write("Date directory existed already, using this directory to keep images from seperate runs seperated")
             else:
                 pass
