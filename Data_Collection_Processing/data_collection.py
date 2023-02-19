@@ -37,12 +37,15 @@ def main():
     end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
 
     while datetime.datetime.now()<start:
-        time.sleep(15*60) # 15 minutes 
+        print("Waiting for night")
+        time.sleep((start-datetime.datetime.now()).total_seconds())
 
     while datetime.datetime.now()<end:
         camera.capture_image_and_download()
         time.sleep(config.camera['Image_Frequency']*60)
-        
+
+    # Restart for the next day
+    main()
 
 
 
@@ -57,7 +60,7 @@ class Camera_Handler_gphoto:
 
         self.config = config_handler.camera
         # Double checks brand and model
-        self.find_camera() # TODO: 
+        self.find_camera() 
         
         # Remove unwanted config settings and update camera internal settings for imaging routine
         config_subset = self.config
@@ -65,8 +68,7 @@ class Camera_Handler_gphoto:
         config_subset.pop('Model')
         config_subset.pop('Brand')
         config_subset.pop('Image_Frequency')
-        # TODO: uncomment below
-        #self.set_all_config_entries(config_subset)
+        self.set_all_config_entries(config_subset)
 
         # Return camera internal settings for logging purposes
         self.get_camera_config()
@@ -157,10 +159,12 @@ class Camera_Handler_gphoto:
         """Sets all relevant config entries for imaging iteratively
         ------
         config_dict --> dictionary with Key=Configentry:value=Configvalue
-        """ # TODO; this wont work
+        """ 
 
-        config_dict['Shutter Speed'] = config_dict['Exposure']
-        config_dict['ISO Speed'] = config_dict['Exposure']
+        config_dict['/main/capturesettings/shutterspeed'] = config_dict['Exposure']
+        config_dict.pop("Exposure")
+        config_dict['/main/imgsettings/iso'] = config_dict['ISO'] # 
+        config_dict.pop("ISO")
         for key, value in config_dict:
             self.set_config_entry(key,value)
         
@@ -171,7 +175,7 @@ class Camera_Handler_gphoto:
         """Returns camera internal configuration"""
         result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True)
         if result.returncode != 0:
-           print("CMD: gphoto2 --set-config {}={}".format(entry, value))
+           print("CMD: gphoto2 --set-config-value {}={}".format(entry, value))
            print("Output: \n", result)
            raise Exception('Setting config value failed with the command output printed above')
 
@@ -186,7 +190,7 @@ class File_Handler:
     def __init__(self) -> None:
         # Define where images will be downlaoded
         now = datetime.datetime.now()
-        img_path = os.path.join(os.path.abspath(""), now.strftime("%Y%m%d"))
+        img_path = os.path.join(os.path.abspath(), now.strftime("%Y%m%d"))
         if not os.path.isdir(img_path):
             os.mkdir(img_path)
         else:
@@ -227,7 +231,11 @@ class Config_Handler:
         self.camera = config["Camera"]
 
         # Check all relevant data present
-        #TODO
+        for i in ("Exposure", "ISO", "Image_Frequency", "Brand", "Model"):
+            if i not in self.camera:
+                raise Exception("Config file incomplete entry: {} missing".format(i))
+            else:
+                pass
 
         # Extract file paths
         self.paths = config["Paths"]

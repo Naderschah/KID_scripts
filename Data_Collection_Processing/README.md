@@ -14,6 +14,7 @@ TODO:
 - How will the cameras be powered? DId we remember to get some sort of direct power connection for the cameras?
         We cant turn them off and on from the software - only works manual  
 
+- How does whitebalance work in raw files : /main/imgsettings/whitebalance
 
 Need to install
 fitrst run update upgrade
