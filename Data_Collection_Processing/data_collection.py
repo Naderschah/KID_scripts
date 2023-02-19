@@ -87,11 +87,13 @@ class Camera_Handler_gphoto:
         # Check gphoto detects the correct camera -- assumes only 1 camera is detected 
         result = subprocess.run(["gphoto2 --auto-detect"], capture_output=True,check=True,shell=True)
 
-        if not self.config['Brand'] in result.stdout.decode("utf-8").split('\n')[-1]:
+        if not self.config['Brand'] in result.stdout.decode("utf-8").split('\n')[-2]:
+            print(self.config['Brand'], result.stdout.decode("utf-8").split('\n')[-2])
             raise Exception('Camera Brand mismatch in gphoto2 auto detect, please fix the config file')
         else: pass
 
-        if not self.config['Model'] in result.stdout.decode("utf-8").split('\n')[-1]:
+        if not self.config['Model'] in result.stdout.decode("utf-8").split('\n')[-2]:
+            print(self.config['Model'], result.stdout.decode("utf-8").split('\n')[-2])
             raise Exception('Camera Model mismatch in gphoto2 auto detect, please fix the config file')
         else: pass
 
