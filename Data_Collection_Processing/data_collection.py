@@ -85,7 +85,7 @@ class Camera_Handler_gphoto:
         FIXME: Here I assumed that none of the cameras use RS232 to connect as it was a standard from the 1960s this should not raise any issues, also assume only 1 camera
         """
         # Check gphoto detects the correct camera -- assumes only 1 camera is detected 
-        result = subprocess.run(["gphoto2 --auto-detect"], capture_output=True)
+        result = subprocess.run(["gphoto2 --auto-detect"], capture_output=True,check=True,shell=True)
 
         if not self.config['Brand'] in result.split('\n')[-1]:
             raise Exception('Camera Brand mismatch in gphoto2 auto detect, please fix the config file')
@@ -99,7 +99,7 @@ class Camera_Handler_gphoto:
     
     def get_all_files(self):
         """Retrieves all files on sd card"""
-        result = subprocess.run(["gphoto2 --get-all-files"], capture_output=True)
+        result = subprocess.run(["gphoto2 --get-all-files"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --get-all-files")
            print("Output: \n", result)
@@ -109,7 +109,7 @@ class Camera_Handler_gphoto:
     
     def delete_all_files(self):
         """Deletes all files from sd card"""
-        result = subprocess.run(["gphoto2 --delete-all-files"], capture_output=True)
+        result = subprocess.run(["gphoto2 --delete-all-files"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --delete-all-files")
            print("Output: \n", result)
@@ -119,7 +119,7 @@ class Camera_Handler_gphoto:
     
     def capture_image(self):
         """Captures an image with current settings"""
-        result = subprocess.run(["gphoto2 --capture-image"], capture_output=True)
+        result = subprocess.run(["gphoto2 --capture-image"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --capture-image")
            print("Output: \n", result)
@@ -130,7 +130,7 @@ class Camera_Handler_gphoto:
     
     def capture_image_and_download(self):
         """Captures an image with current settings and download"""
-        result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True)
+        result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --capture-image")
            print("Output: \n", result)
@@ -142,7 +142,7 @@ class Camera_Handler_gphoto:
     def get_camera_config(self):
         """Returns camera internal configuration"""
 
-        result = subprocess.run(["gphoto2 --list-all-config"], capture_output=True)
+        result = subprocess.run(["gphoto2 --list-all-config"], capture_output=True,check=True,shell=True)
 
         if result.returncode != 0:
            print("CMD: gphoto2 --list-all-config")
@@ -175,7 +175,7 @@ class Camera_Handler_gphoto:
 
     def set_config_entry(self,entry, value):
         """Returns camera internal configuration"""
-        result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True)
+        result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --set-config-value {}={}".format(entry, value))
            print("Output: \n", result)
