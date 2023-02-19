@@ -3,6 +3,7 @@ import subprocess
 import os
 import datetime
 import suntime
+import copy
 import time
 
 """Class that handles camera control, i.e. image taking 
@@ -34,19 +35,20 @@ def main():
         camera = Camera_Hanlder_jakes_thing(config)
 
     # Check time to start
-    sun = suntime.Sun(config.location['longitude'], config.location['latitude'])
+    print('Getting Start and stop time')
+    sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
     start = sun.get_sunset_time()
     end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
 
-    while datetime.datetime.now()<start:
+    while datetime.datetime.now(datetime.timezone.utc)<start:
         print("Waiting for night")
-        time.sleep((start-datetime.datetime.now()).total_seconds())
-
-    while datetime.datetime.now()<end:
+        time.sleep((start-datetime.datetime.now(datetime.timezone.utc)).total_seconds())
+    print('Starting Imaging')
+    while datetime.datetime.now(datetime.timezone.utc)<end:
         camera.capture_image_and_download()
-        time.sleep(config.camera['Image_Frequency']*60)
+        time.sleep(int(config.camera['Image_Frequency'])*60)
 
-    # Restart for the next day
+    # FIXME Maybe set cronjob -- more efficient but permission issues etc are bound to arise
     main()
 
 
@@ -65,7 +67,7 @@ class Camera_Handler_gphoto:
         self.find_camera() 
         
         # Remove unwanted config settings and update camera internal settings for imaging routine
-        config_subset = self.config
+        config_subset = copy.deepcopy(self.config)
         
         config_subset.pop('Model')
         config_subset.pop('Brand')
@@ -132,12 +134,16 @@ class Camera_Handler_gphoto:
     
     def capture_image_and_download(self):
         """Captures an image with current settings and download"""
+        print('Capture about to start')
         result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True,check=True,shell=True)
+        print('Capture done')
         if result.returncode != 0:
            print("CMD: gphoto2 --capture-image")
            print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Capturing Image or downloading failed with the command output printed above')
-    
+        else: 
+            pass
+        print('Captured Image')
         return None
     
 
@@ -169,8 +175,8 @@ class Camera_Handler_gphoto:
         config_dict.pop("Exposure")
         config_dict['/main/imgsettings/iso'] = config_dict['ISO'] # 
         config_dict.pop("ISO")
-        for key, value in config_dict:
-            self.set_config_entry(key,value)
+        for key in config_dict:
+            self.set_config_entry(key,config_dict[key])
         
         return None
 
