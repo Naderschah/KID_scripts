@@ -87,11 +87,11 @@ class Camera_Handler_gphoto:
         # Check gphoto detects the correct camera -- assumes only 1 camera is detected 
         result = subprocess.run(["gphoto2 --auto-detect"], capture_output=True,check=True,shell=True)
 
-        if not self.config['Brand'] in result.stdout.split('\n')[-1]:
+        if not self.config['Brand'] in result.stdout.decode("utf-8").split('\n')[-1]:
             raise Exception('Camera Brand mismatch in gphoto2 auto detect, please fix the config file')
         else: pass
 
-        if not self.config['Model'] in result.stdout.split('\n')[-1]:
+        if not self.config['Model'] in result.stdout.decode("utf-8").split('\n')[-1]:
             raise Exception('Camera Model mismatch in gphoto2 auto detect, please fix the config file')
         else: pass
 
@@ -102,7 +102,7 @@ class Camera_Handler_gphoto:
         result = subprocess.run(["gphoto2 --get-all-files"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --get-all-files")
-           print("Output: \n", result.stdout)
+           print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Downloading files failed with the command output printed above')
     
         return None
@@ -112,7 +112,7 @@ class Camera_Handler_gphoto:
         result = subprocess.run(["gphoto2 --delete-all-files"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --delete-all-files")
-           print("Output: \n", result.stdout)
+           print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Deleting files failed with the command output printed above')
     
         return None
@@ -122,7 +122,7 @@ class Camera_Handler_gphoto:
         result = subprocess.run(["gphoto2 --capture-image"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --capture-image")
-           print("Output: \n", result.stdout)
+           print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Capturing Image failed with the command output printed above')
     
         return None
@@ -133,7 +133,7 @@ class Camera_Handler_gphoto:
         result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --capture-image")
-           print("Output: \n", result.stdout)
+           print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Capturing Image or downloading failed with the command output printed above')
     
         return None
@@ -146,12 +146,12 @@ class Camera_Handler_gphoto:
 
         if result.returncode != 0:
            print("CMD: gphoto2 --list-all-config")
-           print("Output: \n", result.stdout)
+           print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Retrieving camera config failed with the command output printed above')
         else:
             pass
 
-        self.internal_config = result.stdout
+        self.internal_config = result.stdout.decode("utf-8")
         # TODO: Do formating
 
         return None
@@ -178,7 +178,7 @@ class Camera_Handler_gphoto:
         result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            print("CMD: gphoto2 --set-config-value {}={}".format(entry, value))
-           print("Output: \n", result.stdout)
+           print("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Setting config value failed with the command output printed above')
 
         return None
