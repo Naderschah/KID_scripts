@@ -20,11 +20,13 @@ TODO; What camera did jake buy what backend can be used
 
 def main():
     # TODO; Iterate per night
+    base_path = os.path.abspath(os.getcwd())
+    # Retrieve config file
+    config = Config_Handler(path=os.path.join(base_path,'config.ini'))
 
     # Sets up folder for night and switches directory
-    file_handler = File_Handler()    
-    # Retrieve config file
-    config = Config_Handler(path=os.path.join(os.path.abspath(os.getcwd()),'config.ini'))
+    file_handler = File_Handler()   
+
     # Set up camera control - each init will check the correct camera and brand is 
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
         camera = Camera_Handler_gphoto(config)
