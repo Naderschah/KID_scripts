@@ -24,7 +24,7 @@ def main():
     # Sets up folder for night and switches directory
     file_handler = File_Handler()    
     # Retrieve config file
-    config = Config_Handler(path=os.path.join(os.path.abspath(os.getcwd()),'config.in'))
+    config = Config_Handler(path=os.path.join(os.path.abspath(os.getcwd()),'config.ini'))
     # Set up camera control - each init will check the correct camera and brand is 
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
         camera = Camera_Handler_gphoto(config)
@@ -223,7 +223,7 @@ class Pipeline_Handler:
 """Utility class to load and set config variables saved in INI formating using configparser, each attribute will be a dict containing the relevant data regarding each grouping"""
 class Config_Handler:
     def __init__(self, path) -> None:
-        
+        print('Loading config from: {}'.format(path)
         # Load the config
         config = self.load_config(path)
 
