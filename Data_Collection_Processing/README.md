@@ -21,6 +21,7 @@ fitrst run update upgrade
 gphoto
 pip3 install suntime
 
+Auto-Power-off needs to be manually disabled in the camera
 
 gphoto behavior:
 download/download-all : downloads to current working path 

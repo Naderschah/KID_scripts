@@ -5,6 +5,9 @@ import datetime
 import suntime
 import copy
 import time
+import logging
+import re
+import sys
 
 """Class that handles camera control, i.e. image taking 
 Below is a list of backends and camera combinations that are to be used 
@@ -14,58 +17,110 @@ Canon RP
     Note that for this backend I will not be using the python ported library but simply will execute the CMD line from within python
 
 TODO; What camera did jake buy what backend can be used
+FIXME: IO error (camera --> find out why happens , raspberry --> do file management)
 """
+DEBUG = True
+
+
+
+### IMPORTANT: I do not get how loggers work, I have had only inconsistent reults this may need reworking
+CODE_DIR = os.path.abspath(os.getcwd())
+
+logFormatter = logging.Formatter("%(asctime)s [line: %(lineno)d] [%(levelname)-5.5s]  \n%(message)s")
+ROOTLOGGER = logging.getLogger()
+# Set lowest possible level so it catches all
+ROOTLOGGER.setLevel(logging.DEBUG)
+
+if not os.path.isdir(os.path.join(CODE_DIR, 'logs')):
+    os.mkdir(os.path.join(CODE_DIR, 'logs'))
+
+fileHandler = logging.FileHandler(os.path.join(CODE_DIR, 'logs', '{}.log'.format(datetime.datetime.now().strftime("%Y%m%d"))))
+print(os.path.join(CODE_DIR, 'logs' 'logs.log'))
+fileHandler.setFormatter(logFormatter)
+ROOTLOGGER.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+ROOTLOGGER.addHandler(consoleHandler)
+
+ROOTLOGGER.info('Created ROOTLOGGER')
+
+# Setting gphoto file config
+if os.path.isdir('/home/raspberry/.gphoto'):
+    os.remove('/home/raspberry/.gphoto/settings')
+else:
+    os.mkdir('/home/raspberry/.gphoto')
+
+with open('/home/raspberry/.gphoto/settings','w') as file_:
+    # Set file name convention otherwise failes onwrite asking if user wants to overwrite
+    file_.write('gphoto2=filename=%Y%m%d-%H:%M:%S.jpg')
+    # The rest of the file will be populated by auto detect
 
 
 
 
 def main():
-    # TODO; Iterate per night
-    base_path = os.path.abspath(os.getcwd())
+    print('setting up config')
     # Retrieve config file
-    config = Config_Handler(path=os.path.join(base_path,'config.ini'))
+    config = Config_Handler(path=os.path.join(CODE_DIR,'config.ini'))
 
     # Sets up folder for night and switches directory
-    file_handler = File_Handler()   
-
+    print('setting up file handler')
+    file_handler = File_Handler(config.paths)
     # Set up camera control - each init will check the correct camera and brand is 
+    print('Configure camera')
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
+        ROOTLOGGER.info("Using gphoto2 as backend")
         camera = Camera_Handler_gphoto(config)
     elif config.camera['Brand'] == "Jakes thing": # TODO:
+        ROOTLOGGER.info("Using some other backend")
         camera = Camera_Hanlder_jakes_thing(config)
 
+    print('Getting operation times')
     # Check time to start
-    print('Getting Start and stop time')
     sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
     start = sun.get_sunset_time()
     end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
 
-    while datetime.datetime.now(datetime.timezone.utc)<start:
+    ROOTLOGGER.info('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
+    print('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
+
+    while datetime.datetime.now(datetime.timezone.utc)<start and not DEBUG:
+        ROOTLOGGER.info("Waiting for night")
         print("Waiting for night")
         time.sleep((start-datetime.datetime.now(datetime.timezone.utc)).total_seconds())
+    ROOTLOGGER.info('Starting Imaging')
     print('Starting Imaging')
+    counter = 1
     while datetime.datetime.now(datetime.timezone.utc)<end:
+        print('Taking image ', counter)
         camera.capture_image_and_download()
         time.sleep(int(config.camera['Image_Frequency'])*60)
+        counter += 1
+    print('Total Images ', counter)
+    ROOTLOGGER.info('Total number of images ', counter)
 
-    # FIXME Maybe set cronjob -- more efficient but permission issues etc are bound to arise
     main()
 
 
 
+
+
 class Camera_Hanlder_jakes_thing:
-    def __init__(self) -> None:
+    def __init__(self,config_handler) -> None:
+        self.config = config_handler.camera
         pass
 
 
 class Camera_Handler_gphoto:
+    """Note that a lot of methods are implemented for camera control that arent used, that is just so the commands dont need to be searched for, odds are they wont directly work without more configuration"""
     def __init__(self, config_handler) -> None:
         # Check connected camera corresponds to config file specification
 
         self.config = config_handler.camera
         # Double checks brand and model
         self.find_camera() 
-        
+        ROOTLOGGER.info('Camera found')
         # Remove unwanted config settings and update camera internal settings for imaging routine
         config_subset = copy.deepcopy(self.config)
         
@@ -73,29 +128,29 @@ class Camera_Handler_gphoto:
         config_subset.pop('Brand')
         config_subset.pop('Image_Frequency')
         self.set_all_config_entries(config_subset)
+        ROOTLOGGER.info('Set config entries')
 
         # Return camera internal settings for logging purposes
         self.get_camera_config()
-        # TODO: change to logging module and pipe to some meta file
-        print('Camera configured to internal configuration:')
-        print(self.internal_config)
+        ROOTLOGGER.info('Camera configured to internal configuration:')
+        for key in self.internal_config:
+            ROOTLOGGER.info('{key}\n{self.internal_config[key][0]}\n{self.internal_config[key][1]}\n\n')
 
         pass
 
     def find_camera(self):
         """Uses gphoto2 cmd line to find port and information about the camera connected to the system
-        FIXME: Here I assumed that none of the cameras use RS232 to connect as it was a standard from the 1960s this should not raise any issues, also assume only 1 camera
         """
         # Check gphoto detects the correct camera -- assumes only 1 camera is detected 
         result = subprocess.run(["gphoto2 --auto-detect"], capture_output=True,check=True,shell=True)
 
         if not self.config['Brand'] in result.stdout.decode("utf-8").split('\n')[-2]:
-            print(self.config['Brand'], result.stdout.decode("utf-8").split('\n')[-2])
+            ROOTLOGGER.critical("Camera Brand mismatch")
             raise Exception('Camera Brand mismatch in gphoto2 auto detect, please fix the config file')
         else: pass
 
         if not self.config['Model'] in result.stdout.decode("utf-8").split('\n')[-2]:
-            print(self.config['Model'], result.stdout.decode("utf-8").split('\n')[-2])
+            ROOTLOGGER.critical("Camera Model mismatch")
             raise Exception('Camera Model mismatch in gphoto2 auto detect, please fix the config file')
         else: pass
 
@@ -105,8 +160,8 @@ class Camera_Handler_gphoto:
         """Retrieves all files on sd card"""
         result = subprocess.run(["gphoto2 --get-all-files"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
-           print("CMD: gphoto2 --get-all-files")
-           print("Output: \n", result.stdout.decode("utf-8"))
+           ROOTLOGGER.critical("CMD: gphoto2 --get-all-files")
+           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Downloading files failed with the command output printed above')
     
         return None
@@ -115,8 +170,8 @@ class Camera_Handler_gphoto:
         """Deletes all files from sd card"""
         result = subprocess.run(["gphoto2 --delete-all-files"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
-           print("CMD: gphoto2 --delete-all-files")
-           print("Output: \n", result.stdout.decode("utf-8"))
+           ROOTLOGGER.critical("CMD: gphoto2 --delete-all-files")
+           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Deleting files failed with the command output printed above')
     
         return None
@@ -125,8 +180,8 @@ class Camera_Handler_gphoto:
         """Captures an image with current settings"""
         result = subprocess.run(["gphoto2 --capture-image"], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
-           print("CMD: gphoto2 --capture-image")
-           print("Output: \n", result.stdout.decode("utf-8"))
+           ROOTLOGGER.critical("CMD: gphoto2 --capture-image")
+           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Capturing Image failed with the command output printed above')
     
         return None
@@ -134,16 +189,15 @@ class Camera_Handler_gphoto:
     
     def capture_image_and_download(self):
         """Captures an image with current settings and download"""
-        print('Capture about to start')
+        ROOTLOGGER.info('Capturing and downloading Image')
         result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True,check=True,shell=True)
-        print('Capture done')
         if result.returncode != 0:
-           print("CMD: gphoto2 --capture-image")
-           print("Output: \n", result.stdout.decode("utf-8"))
+           ROOTLOGGER.critical("CMD: gphoto2 --capture-image-and-download")
+           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Capturing Image or downloading failed with the command output printed above')
         else: 
-            pass
-        print('Captured Image')
+            ROOTLOGGER.info('Capture and downlaod complete')
+
         return None
     
 
@@ -153,14 +207,45 @@ class Camera_Handler_gphoto:
         result = subprocess.run(["gphoto2 --list-all-config"], capture_output=True,check=True,shell=True)
 
         if result.returncode != 0:
-           print("CMD: gphoto2 --list-all-config")
-           print("Output: \n", result.stdout.decode("utf-8"))
+           ROOTLOGGER.critical("CMD: gphoto2 --list-all-config")
+           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Retrieving camera config failed with the command output printed above')
         else:
             pass
+        # Format output:
+        out = result.stdout.decode("utf-8").split('\n')
+        result = []
+        # Filter out newline and Loading
+        for i in out:
+            if 'Loading' not in i:
+                if '' != i:
+                    result.append(i)
 
-        self.internal_config = result.stdout.decode("utf-8")
-        # TODO: Do formating
+        out = {}
+        for i in result:
+            # Condition to note if iteration in entry or not
+            in_cond = False
+            # Verifies new entry
+            if re.match('/*/*', i) is not None and not in_cond:
+                in_cond = True
+                config_path = i
+            
+            elif in_cond and "Label" in i:
+                label = i
+
+            elif in_cond and "Current" in i:
+                current = i
+            
+            elif in_cond and i == "END":
+                # Write settings to dictionary
+                out[label] = [config_path, current]
+                in_cond = False
+
+            else:
+                # Pass over other conditions
+                pass
+
+        self.internal_config = out
 
         return None
     
@@ -185,8 +270,8 @@ class Camera_Handler_gphoto:
         """Returns camera internal configuration"""
         result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
-           print("CMD: gphoto2 --set-config-value {}={}".format(entry, value))
-           print("Output: \n", result.stdout.decode("utf-8"))
+           ROOTLOGGER.critical("CMD: gphoto2 --set-config-value {}={}".format(entry, value))
+           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Setting config value failed with the command output printed above')
 
         return None
@@ -197,24 +282,30 @@ class Camera_Handler_gphoto:
     
 """Class that handles data transfer from local storage (most likely a rasberry pi) to the network storage"""
 class File_Handler:
-    def __init__(self) -> None:
+    def __init__(self,path_conf) -> None:
         # Define where images will be downlaoded
         now = datetime.datetime.now()
-        img_path = os.path.join(os.path.abspath(""), now.strftime("%Y%m%d"))
-        if not os.path.isdir(img_path):
-            os.mkdir(img_path)
+        img_path = os.path.join(path_conf["FILE_SAVE"], now.strftime("%Y%m%d"))
+        # Logger set after directory created
+        if not os.path.isdir(img_path) or len(os.listdir(img_path))==0:
+            if not os.path.isdir(img_path):
+                os.mkdir(img_path)
+            ROOTLOGGER.info("Created save directory: {}".format(img_path))
         else:
-            # Alternative handlign if folder exists
+            # Alternative handling if folder exists
             if len(os.listdir(img_path))>0:
                 img_path = img_path+"_2"
+                if os.path.isdir(img_path):
+                    raise Exception('Pipeline failed twice, investigate issue!')
                 os.mkdir(img_path)
                 with open(os.path.join(img_path,"dir_exists.txt"), 'w') as warn_file:
                     warn_file.write("Date directory existed already, using this directory to keep images from seperate runs seperated")
+                    ROOTLOGGER.warning("File directory already exists: Using _2 directory")
             else:
                 pass
         # Change path to download images into correct folder
         os.chdir(img_path)
-
+        ROOTLOGGER.info("Changed working directory to {}".format(img_path))
         pass
 
 
@@ -234,7 +325,6 @@ class Pipeline_Handler:
 """Utility class to load and set config variables saved in INI formating using configparser, each attribute will be a dict containing the relevant data regarding each grouping"""
 class Config_Handler:
     def __init__(self, path) -> None:
-        print('Loading config from: {}'.format(path))
         # Load the config
         config = self.load_config(path)
 
