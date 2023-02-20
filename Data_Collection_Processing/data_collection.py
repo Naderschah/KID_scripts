@@ -18,6 +18,7 @@ Canon RP
 
 TODO; What camera did jake buy what backend can be used
 FIXME: IO error (camera --> find out why happens , raspberry --> do file management)
+FIXME: setting to save files as cr2
 """
 DEBUG = True
 
@@ -44,19 +45,6 @@ consoleHandler.setFormatter(logFormatter)
 ROOTLOGGER.addHandler(consoleHandler)
 
 ROOTLOGGER.info('Created ROOTLOGGER')
-
-# Setting gphoto file config
-if os.path.isdir('/home/raspberry/.gphoto'):
-    os.remove('/home/raspberry/.gphoto/settings')
-else:
-    os.mkdir('/home/raspberry/.gphoto')
-
-with open('/home/raspberry/.gphoto/settings','w') as file_:
-    # Set file name convention otherwise failes onwrite asking if user wants to overwrite
-    file_.write('gphoto2=filename=%Y%m%d-%H:%M:%S.jpg')
-    # The rest of the file will be populated by auto detect
-
-
 
 
 def main():
@@ -126,9 +114,11 @@ class Camera_Handler_gphoto:
         # Return camera internal settings for logging purposes
         self.get_camera_config()
         ROOTLOGGER.info('Camera configured to internal configuration:')
+        print(self.internal_config)
+        log_txt = ''
         for key in self.internal_config:
-            ROOTLOGGER.info('{key}\n{self.internal_config[key][0]}\n{self.internal_config[key][1]}\n\n')
-
+            log_txt+= f'{key}\n{self.internal_config[key][0]}\n{self.internal_config[key][1]}\n\n'
+        ROOTLOGGER.info(log_txt)
         pass
 
     def find_camera(self):
@@ -183,13 +173,13 @@ class Camera_Handler_gphoto:
     def capture_image_and_download(self):
         """Captures an image with current settings and download"""
         ROOTLOGGER.info('Capturing and downloading Image')
-        result = subprocess.run(["gphoto2 --capture-image-and-download"], capture_output=True,check=True,shell=True)
+        result = subprocess.run(['gphoto2 --capture-image-and-download --filename "%Y%m%d%H%M%S.cr2"'], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            ROOTLOGGER.critical("CMD: gphoto2 --capture-image-and-download")
            ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
            raise Exception('Capturing Image or downloading failed with the command output printed above')
         else: 
-            ROOTLOGGER.info('Capture and downlaod complete')
+            ROOTLOGGER.info('Capture and download complete')
 
         return None
     
@@ -215,9 +205,10 @@ class Camera_Handler_gphoto:
                     result.append(i)
 
         out = {}
+        in_cond = False
+
         for i in result:
             # Condition to note if iteration in entry or not
-            in_cond = False
             # Verifies new entry
             if re.match('/*/*', i) is not None and not in_cond:
                 in_cond = True
@@ -253,6 +244,10 @@ class Camera_Handler_gphoto:
         config_dict.pop("Exposure")
         config_dict['/main/imgsettings/iso'] = config_dict['ISO'] # 
         config_dict.pop("ISO")
+        config_dict['/main/imgsettings/imageformatsd'] = config_dict['Image_Format'] # 
+        config_dict['/main/imgsettings/imageformat'] = config_dict['Image_Format'] # 
+        config_dict.pop("Image_Format")
+
         for key in config_dict:
             self.set_config_entry(key,config_dict[key])
         
@@ -276,7 +271,7 @@ class Camera_Handler_gphoto:
 """Class that handles data transfer from local storage (most likely a rasberry pi) to the network storage"""
 class File_Handler:
     def __init__(self,path_conf) -> None:
-        # Define where images will be downlaoded
+        # Define where images will be downloaded
         now = datetime.datetime.now()
         img_path = os.path.join(path_conf["FILE_SAVE"], now.strftime("%Y%m%d"))
         # Logger set after directory created
