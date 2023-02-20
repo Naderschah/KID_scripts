@@ -60,15 +60,12 @@ with open('/home/raspberry/.gphoto/settings','w') as file_:
 
 
 def main():
-    print('setting up config')
     # Retrieve config file
     config = Config_Handler(path=os.path.join(CODE_DIR,'config.ini'))
 
     # Sets up folder for night and switches directory
-    print('setting up file handler')
     file_handler = File_Handler(config.paths)
     # Set up camera control - each init will check the correct camera and brand is 
-    print('Configure camera')
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
         ROOTLOGGER.info("Using gphoto2 as backend")
         camera = Camera_Handler_gphoto(config)
@@ -76,28 +73,24 @@ def main():
         ROOTLOGGER.info("Using some other backend")
         camera = Camera_Hanlder_jakes_thing(config)
 
-    print('Getting operation times')
     # Check time to start
     sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
     start = sun.get_sunset_time()
     end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
 
     ROOTLOGGER.info('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
-    print('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
 
     while datetime.datetime.now(datetime.timezone.utc)<start and not DEBUG:
         ROOTLOGGER.info("Waiting for night")
         print("Waiting for night")
         time.sleep((start-datetime.datetime.now(datetime.timezone.utc)).total_seconds())
     ROOTLOGGER.info('Starting Imaging')
-    print('Starting Imaging')
     counter = 1
     while datetime.datetime.now(datetime.timezone.utc)<end:
         print('Taking image ', counter)
         camera.capture_image_and_download()
         time.sleep(int(config.camera['Image_Frequency'])*60)
         counter += 1
-    print('Total Images ', counter)
     ROOTLOGGER.info('Total number of images ', counter)
 
     main()
