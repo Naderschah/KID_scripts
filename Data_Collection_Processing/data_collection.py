@@ -59,7 +59,7 @@ def main():
         camera = Camera_Handler_gphoto(config)
     elif config.camera['Brand'] == "Jakes thing": # TODO:
         ROOTLOGGER.info("Using some other backend")
-        camera = Camera_Hanlder_jakes_thing(config)
+        camera = Camera_Hanlder_INDI(config)
 
     # Check time to start
     sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
@@ -87,7 +87,8 @@ def main():
 
 
 
-class Camera_Hanlder_jakes_thing:
+class Camera_Hanlder_INDI:
+    """Camera handler for ASCOM/INDI devices"""
     def __init__(self,config_handler) -> None:
         self.config = config_handler.camera
         pass
