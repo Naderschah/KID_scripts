@@ -57,8 +57,8 @@ def main():
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
         ROOTLOGGER.info("Using gphoto2 as backend")
         camera = Camera_Handler_gphoto(config)
-    elif config.camera['Brand'] == "Jakes thing": # TODO:
-        ROOTLOGGER.info("Using some other backend")
+    elif config.camera['Brand'] == "ZWO": # TODO:
+        ROOTLOGGER.info("Using zwo asi sdk backend (not sure what asi stands for)")
         camera = Camera_Hanlder_ZWO(config)
 
     # Check time to start
@@ -80,21 +80,110 @@ def main():
         time.sleep(int(config.camera['Image_Frequency'])*60)
         counter += 1
     ROOTLOGGER.info('Total number of images ', counter)
-
+    # The below is for cameras that require closing at the end of the night
+    camera.finish()
     main()
 
 
 
 
 
-class Camera_Hanlder_ZWO:
-    """Camera handler for ZWO devices"""
-    import zwo  # No docs, mess around in python interactive to find commands 
+class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction?
+    """Camera handler for ZWO devices
+    """
+    import asi  # No docs, mess around in python interactive to find commands 
+    # Controls need to be individually indexed and will be added to the below dictionary
+    controls = {} # Name : swig_object
     def __init__(self,config_handler) -> None:
         self.config = config_handler.camera
-        asi.ASIGetNumOfConnectedCameras()
-        pass
+        if asi.ASIGetNumOfConnectedCameras() == 0:
+            logging.error("No camera detected")
+            raise Exception("No camera detected check drivers")
+        else:
+            logging.info("ZWO camera detected")
+        rtn, self.info = asi.ASIGetCameraProperty(0)
+        if rtn != asi.ASI_SUCCESS:  # ASI_SUCCESS == 0
+            logging.error("Driver not working as expected, failure expected")
+        if self.config['Brand']+' '+self.config['Model'] != self.info["Name"]:
+            logging.warning("Camera Brand mismatch! Expected {} Found {}".format(self.config['Brand']+' '+self.config['Model'] , self.info["Name"]))
+        self.set_up_camera()
+        self.get_controls()
+        self.set_controls()
+        
+    def set_up_camera(self):
+        """Does basic setup"""
+        out = asi.ASIOpenCamera(self.info.CameraID)
+        if out != asi.ASI_SUCCESS: logging.warning("Open Camera Failed! {}".format(out))
+        out = asi.ASIInitCamera(self.info.CameraID)
+        if out != asi.ASI_SUCCESS: logging.warning("Init Camera Failed! {}".format(out))
+        return None
+
+    def get_controls(self):
+        """We need to create the controls dictionary ourselves"""
+        rtn, num_controls = asi.ASIGetNumOfControls(self.info.CameraID)
+        for control_index in range(num_controls):
+            rtn, caps = asi.ASIGetControlCaps(self.info.CameraID, control_index)
+            self.controls[caps.Name] = caps
+
+        return None
+
+    def set_controls(self):
+        """
+        Sets controls based on mapping dict from config names to control type name 
+        Name output : index
+        Gain 0
+        Exposure 1
+        WB_R 2
+        WB_B  ...
+        Offset
+        BandWidth
+        Flip
+        AutoExpMaxGain
+        AutoExpMaxExpMS
+        AutoExpTargetBrightness
+        HardwareBin 10
+        HighSpeedMode
+        MonoBin
+        Temperature
+        GPS 14
+        """
+        # Last input is regarding autoadjust of parameter
+        asi.ASISetControlValue(self.info.CameraID, self.controls[index], value, asi.ASI_FALSE)
+
+        # TODO: Set setings
+
+        
+
+        # Print to log file
+        logging.info("Final Configuration:")
+        rtn, num_controls = asi.ASIGetNumOfControls(self.info.CameraID)
+        for control_index in range(num_controls):
+            rtn, caps = asi.ASIGetControlCaps(self.info.CameraID, control_index)
+            rtn, value, _ = asi.ASIGetControlValue(self.info.CameraID, caps.ControlType)
+            logging.info('{}:{}'.format(caps.Name, value))
+        
+
     
+    def finish(self):
+        out = asi.ASICloseCamera(self.info.CameraID)
+        if out != asi.ASI_SUCCESS: logging.warning("Closing Camera Failed! {}".format(out))
+        return None
+    
+
+    def capture_image_and_download(self):
+        # What the hell is bIsDark seems to be a boolean
+        asi.ASIStartExposure(self.info.CameraID, bIsDark)
+        # TODO:
+        # How does this work --- find some C or python example script to understand --- docs are useless
+        while(1):
+            ret, val = asi.ASIGetExpStatus(info.CameraID)
+            if val == asi.ASI_SUCCESS:
+                ret, val = asi.ASIStopExposure(info.CameraID)
+                break
+
+        if val = asi.ASI_SUCCESS:
+            # Figure out pBuffer
+            asi.ASIGetDataAfterExp(info.CameraID, pBuffer)
 
 class Camera_Handler_gphoto:
     """Note that a lot of methods are implemented for camera control that arent used, that is just so the commands dont need to be searched for, odds are they wont directly work without more configuration"""
@@ -266,6 +355,9 @@ class Camera_Handler_gphoto:
            raise Exception('Setting config value failed with the command output printed above')
 
         return None
+    
+    def finish(self):
+        pass
 
 
 

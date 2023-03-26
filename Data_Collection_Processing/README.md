@@ -60,20 +60,21 @@ sudo apt install git # Basic utility requirement
 sudo apt installl gphoto2 # gphoto2 camera control (Canon, Nikon, Samsung etc full list on their site)
 
 
-- asi drivers CAMERA SHOULD NOT BE CONNECTED
-sudo apt install -y wget
+- asi drivers CAMERA SHOULD NOT BE CONNECTED : http://instrumentation.obs.carnegiescience.edu/Software/ZWO/Setup/setup.html
+sudo apt install -y wget python3-setuptools python3-numpy swig
 wget -O ZWO-SDK.tar.bz2 "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas" # TDOO : Check this link always works
 sudo apt install tar
 tar -xvjf ZWO-SDK.tar.bz2
-# The python package below uses ctypes.util.find_library to find the ASICamera2.h header, it looks through the standard shared libraries so we add the package
-sudo cp ASI_linux_mac_SDK_V1.28/include/ASICamera2.h /usr/lib/ASICamera2.h
+# Figure out architecture
+val=$(more /proc/cpuinfo | grep model);b=${val:13:5};b=${b,,};echo "Architecture $b" 
+# Add python header file to shared package dir
+sudo cp ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.so.1.27 /usr/local/lib 
+cd ASI_linux_mac_SDK_*/lib
+sudo install asi.rules /lib/udev/rules.d 
 
-
-- python-zwoasi 
-git clone https://github.com/python-zwoasi/python-zwoasi.git
-cd python-zwoasi
-sudo python setup.py install
-
+Trialed Packages
+- seeing-things/zwo - Uses swig
+The download procedure is in the install script, quite a few of the steps are not required, however, its not worth figuring out which those are as the installation is already incredibly hacky 
 
 
 Raspberry official cam:
