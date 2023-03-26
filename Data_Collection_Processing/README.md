@@ -1,6 +1,10 @@
 Here will live all the code related to data collection, file management, and data processing 
 
 
+
+ZWO-ASI python https://pypi.org/project/camera-zwo-asi/
+
+
 ## Method of Operation:
 
 ### if __name__=='__main__':
@@ -33,7 +37,7 @@ TBD:
 
 
 TODO:
-
+- Where are the ZWO SDK docs, I can not find them anywhere -- only option is looking at C source code
 - Figure out how whitebalance works in raw files : /main/imgsettings/whitebalance
 - Figure out how installation of raspberry can be done prior to inserting the sd card
 
@@ -46,17 +50,40 @@ This section will be updated frequently
 Camera:
 Auto-Power-off needs to be manually disabled - gphoto2 seems to not be able to change this setting
 
-TODO: Trial all in order on clean install --> Find clear instructions to set up ssh password and network without boot
-FIXME: Is indi-allsky required to start the server? as we will never directly use it
-Raspbery installs:
+
+- Raspbery installs:
 sudo apt update # Basic install requirements - Takes quite some time
 sudo apt upgrade 
 sudo apt install git # Basic utility requirement
+
+- Gphoto (canon nikon etc):
 sudo apt installl gphoto2 # gphoto2 camera control (Canon, Nikon, Samsung etc full list on their site)
-wget -O - https://www.astroberry.io/repo/key | sudo apt-key add -    # Begin Install indi driver
-sudo su -c "echo 'deb https://www.astroberry.io/repo/ buster main' > /etc/apt/sources.list.d/astroberry.list"
-sudo apt update
-sudo apt install indi-asi # Last step to install indi base module more info in (we only need asi) : https://indilib.org/download/raspberry-pi.html
+
+
+- asi drivers CAMERA SHOULD NOT BE CONNECTED
+sudo apt install -y wget
+wget -O ZWO-SDK.tar.bz2 "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas" # TDOO : Check this link always works
+sudo apt install tar
+tar -xvjf ZWO-SDK.tar.bz2
+# The python package below uses ctypes.util.find_library to find the ASICamera2.h header, it looks through the standard shared libraries so we add the package
+sudo cp ASI_linux_mac_SDK_V1.28/include/ASICamera2.h /usr/lib/ASICamera2.h
+
+
+- python-zwoasi 
+git clone https://github.com/python-zwoasi/python-zwoasi.git
+cd python-zwoasi
+sudo python setup.py install
+
+
+
+Raspberry official cam:
+
+
+
+Arducam: 
+
+
+
 ## How do i take a picture why is htis so complicated
 
 pip3 install suntime # Python modules -> will be moved to requirements.txt when completed
