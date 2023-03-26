@@ -102,3 +102,10 @@ Send email to Bjorn about optical alignment calibration -- check how focus works
 --- Use dot for calibration, we can show something screenshot it and compare it - hopefully it willbe sufficient for infinite focus check for lens
 -- Check if we can rotate lens a little to determine 
     
+
+
+DOCUMENTATION PLZ
+X inversion
+Rfactor --- what is theta
+Rfactor why replace larger htna 360/2pi with 360/2p
+which commit for paper data
