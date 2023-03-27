@@ -8,6 +8,9 @@ import time
 import logging
 import re
 import sys
+import time
+import numpy as np
+from PIL import Image
 
 """Class that handles camera control, i.e. image taking 
 Below is a list of backends and camera combinations that are to be used 
@@ -15,10 +18,6 @@ Below is a list of backends and camera combinations that are to be used
 Canon 6D
 Canon RP
     Note that for this backend I will not be using the python ported library but simply will execute the CMD line from within python
-
-TODO; What camera did jake buy what backend can be used
-FIXME: IO error (camera --> find out why happens , raspberry --> do file management)
-FIXME: setting to save files as cr2
 """
 DEBUG = True
 
@@ -57,7 +56,7 @@ def main():
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
         ROOTLOGGER.info("Using gphoto2 as backend")
         camera = Camera_Handler_gphoto(config)
-    elif config.camera['Brand'] == "ZWO": # TODO:
+    elif config.camera['Brand'] == "ZWO": 
         ROOTLOGGER.info("Using zwo asi sdk backend (not sure what asi stands for)")
         camera = Camera_Hanlder_ZWO(config)
 
@@ -88,12 +87,21 @@ def main():
 
 
 
-class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction?
+class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it does?
     """Camera handler for ZWO devices
     """
     import asi  # No docs, mess around in python interactive to find commands 
     # Controls need to be individually indexed and will be added to the below dictionary
     controls = {} # Name : swig_object
+    error_codes = {0:'ASI_SUCCESS', 1:'ASI_ERROR_INVALID_INDEX',2:'ASI_ERROR_INVALID_ID',
+                   3:'ASI_ERROR_INVALID_CONTROL_TYPE', 4:'ASI_ERROR_CAMERA_CLOSED',
+                   5:'ASI_ERROR_CAMERA_REMOVED', 6:'ASI_ERROR_INVALID_PATH', 7:'ASI_ERROR_INVALID_FILEFORMAT',
+                   8:'ASI_ERROR_INVALID_SIZE', 9:'ASI_ERROR_INVALID_IMGTYPE',10:'ASI_ERROR_OUTOF_BOUNDARY',
+                   11:'ASI_ERROR_TIMEOUT',12:'ASI_ERROR_INVALID_SEQUENCE',13:'ASI_ERROR_BUFFER_TOO_SMALL',
+                   14:'ASI_ERROR_VIDEO_MODE_ACTIVE',15:'ASI_ERROR_EXPOSURE_IN_PROGRESS',16:'ASI_ERROR_GENERAL_ERROR',
+                   17:'ASI_ERROR_END'}
+    # TODO: Add error codes to failures
+
     def __init__(self,config_handler) -> None:
         self.config = config_handler.camera
         if asi.ASIGetNumOfConnectedCameras() == 0:
@@ -103,6 +111,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction?
             logging.info("ZWO camera detected")
         rtn, self.info = asi.ASIGetCameraProperty(0)
         if rtn != asi.ASI_SUCCESS:  # ASI_SUCCESS == 0
+            # FIXME: On restart camera needs to be reconnected - find a way to do that digitally
             logging.error("Driver not working as expected, failure expected")
         if self.config['Brand']+' '+self.config['Model'] != self.info["Name"]:
             logging.warning("Camera Brand mismatch! Expected {} Found {}".format(self.config['Brand']+' '+self.config['Model'] , self.info["Name"]))
@@ -116,6 +125,16 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction?
         if out != asi.ASI_SUCCESS: logging.warning("Open Camera Failed! {}".format(out))
         out = asi.ASIInitCamera(self.info.CameraID)
         if out != asi.ASI_SUCCESS: logging.warning("Init Camera Failed! {}".format(out))
+        # Set video mode default is mono ( I think )
+        out = asi.ASISetROIFormat(
+                info.CameraID, 
+                info.MaxWidth, # Img dim
+                info.MaxHeight, # Img dim
+                1, # Binning 
+                asi.ASI_IMG_RGB24 # IMG type
+            )
+        if out != asi.ASI_SUCCESS: logging.error("Could not set ROI format. Error code: {}".format(out))
+
         return None
 
     def get_controls(self):
@@ -147,12 +166,24 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction?
         Temperature
         GPS 14
         """
-        # Last input is regarding autoadjust of parameter
-        asi.ASISetControlValue(self.info.CameraID, self.controls[index], value, asi.ASI_FALSE)
-
-        # TODO: Set setings
-
+        config_subset = copy.deepcopy(self.config)
         
+        config_subset.pop('Model')
+        config_subset.pop('Brand')
+        config_subset.pop('Image_Frequency')
+        config_subset.pop('Image_Format')
+        # Rename indexes
+        config_subset[0] = config_subset['ISO'] 
+        config_subset.pop('ISO')
+        config_subset[1] = config_subset['Exposure'] 
+        config_subset.pop('Exposure')
+
+
+        for key,value in config_subset:
+            # Params (cam id, control caps reference, value to bne set, bool autoadjust value)
+            asi.ASISetControlValue(self.info.CameraID, asi.ASIGetControlCaps(self.info.CameraID, key), value, asi.ASI_FALSE)
+
+
 
         # Print to log file
         logging.info("Final Configuration:")
@@ -170,20 +201,32 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction?
         return None
     
 
-    def capture_image_and_download(self):
+    def capture_image_and_download(self, timeout = 100):
         # What the hell is bIsDark seems to be a boolean
-        asi.ASIStartExposure(self.info.CameraID, bIsDark)
-        # TODO:
+        rtn = asi.ASIStartExposure(self.info.CameraID, bIsDark)
+        if val != asi.ASI_SUCCESS: logging.error('Failed to initiate image exposure')
+        # TODO: Finish fix 
         # How does this work --- find some C or python example script to understand --- docs are useless
+        start = time.time()
         while(1):
-            ret, val = asi.ASIGetExpStatus(info.CameraID)
+            ret, val = asi.ASIGetExpStatus(self.info.CameraID)
             if val == asi.ASI_SUCCESS:
-                ret, val = asi.ASIStopExposure(info.CameraID)
+                ret = asi.ASIStopExposure(self.info.CameraID)
+                break
+            elif time.time() - start > 100:
+                logging.error("Capture timed out")
                 break
 
-        if val = asi.ASI_SUCCESS:
-            # Figure out pBuffer
-            asi.ASIGetDataAfterExp(info.CameraID, pBuffer)
+        if ret == asi.ASI_SUCCESS:
+            # Figure out pBuffer : errror on string says: Int Dimension expected
+            # In c it expects nd unsigned char pointing to an image buffer and then also the buffer size
+            # I assume the error refers to the wrong option
+            rtn, out = asi.ASIGetDataAfterExp(self.info.CameraID, pBuffer=(self.info.MaxWidth*self.info.MaxHeight))
+            out = np.reshape(out, (self.info.MaxWidth,self.info.MaxHeight))
+            im = Image.fromarray(out)
+            im.save("{}.tiff".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S")))
+
+
 
 class Camera_Handler_gphoto:
     """Note that a lot of methods are implemented for camera control that arent used, that is just so the commands dont need to be searched for, odds are they wont directly work without more configuration"""
@@ -230,37 +273,6 @@ class Camera_Handler_gphoto:
         else: pass
 
         return None
-    
-    def get_all_files(self):
-        """Retrieves all files on sd card"""
-        result = subprocess.run(["gphoto2 --get-all-files"], capture_output=True,check=True,shell=True)
-        if result.returncode != 0:
-           ROOTLOGGER.critical("CMD: gphoto2 --get-all-files")
-           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
-           raise Exception('Downloading files failed with the command output printed above')
-    
-        return None
-    
-    def delete_all_files(self):
-        """Deletes all files from sd card"""
-        result = subprocess.run(["gphoto2 --delete-all-files"], capture_output=True,check=True,shell=True)
-        if result.returncode != 0:
-           ROOTLOGGER.critical("CMD: gphoto2 --delete-all-files")
-           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
-           raise Exception('Deleting files failed with the command output printed above')
-    
-        return None
-    
-    def capture_image(self):
-        """Captures an image with current settings"""
-        result = subprocess.run(["gphoto2 --capture-image"], capture_output=True,check=True,shell=True)
-        if result.returncode != 0:
-           ROOTLOGGER.critical("CMD: gphoto2 --capture-image")
-           ROOTLOGGER.critical("Output: \n", result.stdout.decode("utf-8"))
-           raise Exception('Capturing Image failed with the command output printed above')
-    
-        return None
-        
     
     def capture_image_and_download(self):
         """Captures an image with current settings and download"""
@@ -425,13 +437,13 @@ class Config_Handler:
         self.paths = config["Paths"]
 
         # Check all relevant data present
-        #TODO
+        #TODO What data is required
 
         # Extract pipeline executable command
         self.pipeline = config["Pipeline"]
 
         # Check pipeline exists
-        #TODO
+        #TODO Prob not gonna be required here
 
         self.location = config['Location']
         
