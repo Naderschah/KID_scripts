@@ -11,6 +11,12 @@ import sys
 import time
 import numpy as np
 from PIL import Image
+import tarfile
+
+try:
+    import asi
+except:
+    pass
 
 """Class that handles camera control, i.e. image taking 
 Below is a list of backends and camera combinations that are to be used 
@@ -67,7 +73,7 @@ def main():
 
     ROOTLOGGER.info('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
 
-    while datetime.datetime.now(datetime.timezone.utc)<start and not DEBUG:
+    while datetime.datetime.now(datetime.timezone.utc)<start:
         ROOTLOGGER.info("Waiting for night")
         print("Waiting for night")
         time.sleep((start-datetime.datetime.now(datetime.timezone.utc)).total_seconds())
@@ -81,16 +87,20 @@ def main():
     ROOTLOGGER.info('Total number of images ', counter)
     # The below is for cameras that require closing at the end of the night
     camera.finish()
+    # Now we also compress the created data
+    with tarfile.open(file_handler.img_path.split('/')[-1]+'.tar.gz', "w:gz") as tar:
+        tar.add(file_handler.img_path, arcname=os.path.basename(file_handler.img_path))
+    os.remove(file_handler.img_path)
     main()
 
 
-
-
+def make_tarfile(output_filename, source_dir):
+    
 
 class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it does?
     """Camera handler for ZWO devices
     """
-    import asi  # No docs, mess around in python interactive to find commands 
+     # No docs, mess around in python interactive to find commands 
     # Controls need to be individually indexed and will be added to the below dictionary
     controls = {} # Name : swig_object
     error_codes = {0:'ASI_SUCCESS', 1:'ASI_ERROR_INVALID_INDEX',2:'ASI_ERROR_INVALID_ID',
@@ -113,8 +123,8 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         if rtn != asi.ASI_SUCCESS:  # ASI_SUCCESS == 0
             # FIXME: On restart camera needs to be reconnected - find a way to do that digitally
             logging.error("Driver not working as expected, failure expected")
-        if self.config['Brand']+' '+self.config['Model'] != self.info["Name"]:
-            logging.warning("Camera Brand mismatch! Expected {} Found {}".format(self.config['Brand']+' '+self.config['Model'] , self.info["Name"]))
+        if self.config['Brand']+' '+self.config['Model'] != self.info.Name:
+            logging.warning("Camera Brand mismatch! Expected {} Found {}".format(self.config['Brand']+' '+self.config['Model'] , self.info.Name))
         self.set_up_camera()
         self.get_controls()
         self.set_controls()
@@ -127,9 +137,9 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         if out != asi.ASI_SUCCESS: logging.warning("Init Camera Failed! {}".format(out))
         # Set video mode default is mono ( I think )
         out = asi.ASISetROIFormat(
-                info.CameraID, 
-                info.MaxWidth, # Img dim
-                info.MaxHeight, # Img dim
+                self.info.CameraID, 
+                self.info.MaxWidth, # Img dim
+                self.info.MaxHeight, # Img dim
                 1, # Binning 
                 asi.ASI_IMG_RGB24 # IMG type
             )
@@ -166,23 +176,29 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         Temperature
         GPS 14
         """
-        config_subset = copy.deepcopy(self.config)
-        
-        config_subset.pop('Model')
-        config_subset.pop('Brand')
-        config_subset.pop('Image_Frequency')
-        config_subset.pop('Image_Format')
-        # Rename indexes
-        config_subset[0] = config_subset['ISO'] 
-        config_subset.pop('ISO')
-        config_subset[1] = config_subset['Exposure'] 
-        config_subset.pop('Exposure')
+        config_subset = {}
+        # add relevant indexes and do typing
+        config_subset[0] = int(self.config['ISO'])
+        auto_exp=False
+        if 'Auto'==self.config['Exposure']:
+            self.config = self.config.pop('Exposure')
+            auto_exp = True
 
+        elif "/" in self.config['Exposure']:
+            n, d = self.config['Exposure'].split('/')
+            # convert to micro s
+            config_subset[1] = int(int(n)/int(d)*1e6)
+        else:
+            config_subset[1] = int(self.config['Exposure'])*1e6
 
-        for key,value in config_subset:
+        for key in config_subset:
             # Params (cam id, control caps reference, value to bne set, bool autoadjust value)
-            asi.ASISetControlValue(self.info.CameraID, asi.ASIGetControlCaps(self.info.CameraID, key), value, asi.ASI_FALSE)
-
+            # It wants cam id as a swift object, control caps as the int identifier,
+            asi.ASISetControlValue(self.info.CameraID,key, int(config_subset[key]), asi.ASI_FALSE)
+        
+        if auto_exp:
+            # Sets AutoExpTargetBrightness to 100
+            asi.ASISetControlValue(self.info.CameraID, 9, 100, asi.ASI_TRUE)
 
 
         # Print to log file
@@ -202,27 +218,27 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
     
 
     def capture_image_and_download(self, timeout = 100):
-        # What the hell is bIsDark seems to be a boolean
-        rtn = asi.ASIStartExposure(self.info.CameraID, bIsDark)
-        if val != asi.ASI_SUCCESS: logging.error('Failed to initiate image exposure')
-        # TODO: Finish fix 
-        # How does this work --- find some C or python example script to understand --- docs are useless
-        start = time.time()
+        # What is bIsDark seems to be a boolean -- Dark images?
+        rtn = asi.ASIStartExposure(self.info.CameraID, bIsDark=False)
+        if rtn != asi.ASI_SUCCESS: logging.error('Failed to initiate image exposure')
+        start= time.time()
         while(1):
             ret, val = asi.ASIGetExpStatus(self.info.CameraID)
-            if val == asi.ASI_SUCCESS:
+            # For some reason when it finishes it changes val from 1 to 2
+            if val == 2:
                 ret = asi.ASIStopExposure(self.info.CameraID)
+                print('time taken for img (in python): ',  time.time()-start)
                 break
             elif time.time() - start > 100:
                 logging.error("Capture timed out")
                 break
 
         if ret == asi.ASI_SUCCESS:
-            # Figure out pBuffer : errror on string says: Int Dimension expected
             # In c it expects nd unsigned char pointing to an image buffer and then also the buffer size
             # I assume the error refers to the wrong option
-            rtn, out = asi.ASIGetDataAfterExp(self.info.CameraID, pBuffer=(self.info.MaxWidth*self.info.MaxHeight))
-            out = np.reshape(out, (self.info.MaxWidth,self.info.MaxHeight))
+            rtn, out = asi.ASIGetDataAfterExp(self.info.CameraID, pBuffer=(3*self.info.MaxWidth*self.info.MaxHeight))
+            print('Data return value: ',rtn)
+            out = np.reshape(out, (self.info.MaxHeight,self.info.MaxWidth, 3))
             im = Image.fromarray(out)
             im.save("{}.tiff".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S")))
 
@@ -380,7 +396,8 @@ class File_Handler:
     def __init__(self,path_conf) -> None:
         # Define where images will be downloaded
         now = datetime.datetime.now()
-        img_path = os.path.join(path_conf["FILE_SAVE"], now.strftime("%Y%m%d"))
+        self.img_path = os.path.join(path_conf["FILE_SAVE"], now.strftime("%Y%m%d"))
+        img_path = self.img_path
         # Logger set after directory created
         if not os.path.isdir(img_path) or len(os.listdir(img_path))==0:
             if not os.path.isdir(img_path):
@@ -390,6 +407,7 @@ class File_Handler:
             # Alternative handling if folder exists
             if len(os.listdir(img_path))>0:
                 img_path = img_path+"_2"
+                self.img_path = img_path
                 if os.path.isdir(img_path):
                     raise Exception('Pipeline failed twice, investigate issue!')
                 os.mkdir(img_path)
@@ -405,12 +423,6 @@ class File_Handler:
 
 
 
-
-
-"""Class that handles data processing of previously saved images and saves output to whatever path is specified in the config"""
-class Pipeline_Handler:
-    def __init__(self) -> None:
-        pass
 
 
 
@@ -435,15 +447,6 @@ class Config_Handler:
 
         # Extract file paths
         self.paths = config["Paths"]
-
-        # Check all relevant data present
-        #TODO What data is required
-
-        # Extract pipeline executable command
-        self.pipeline = config["Pipeline"]
-
-        # Check pipeline exists
-        #TODO Prob not gonna be required here
 
         self.location = config['Location']
         

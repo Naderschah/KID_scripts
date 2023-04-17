@@ -1,4 +1,4 @@
-# KIT_scripts
+# KID_scripts
 
 Random scripts associated with the keep it dark project
 
@@ -33,3 +33,14 @@ Framework for taking periodic images transfering to a raspberry, includes a conf
 The intent is that the collected data will daily be retrived by the kapteyn servers through sftp and processed there
 
 All of this is really basic, however, none of it was tested for edge cases yet (I/O error, camera unresponsive, etc)
+
+
+
+### Spectrometer
+
+Adapted code to run a makeshift spectrometer, more info in its documentation
+
+
+### Random Notes:
+
+Lens distortion database: https://github.com/letmaik/lensfunpy

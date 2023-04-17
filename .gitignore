@@ -5,3 +5,5 @@ trial_processing/
 pyasb.egg-info/ 
 logs/
 indi/
+buying_sheets/
+Spectroscope/cal_images/

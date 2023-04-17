@@ -1,7 +1,9 @@
 #!/bin/bash
-apt update 
-apt upgrade -y
-apt install -y git wget tar python3-setuptools python3-numpy swig python3-dev
+
+
+sudo apt update 
+sudo apt upgrade -y
+sudo apt install -y git wget tar vim python3-setuptools python3-numpy swig python3-dev python3-suntime tmux # Basic utility requirement (tmux for persistent session over ssh)
 
 # Get SDK
 wget -O ZWO-SDK.tar.bz2 "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas"
@@ -9,11 +11,11 @@ tar -xvjf ZWO-SDK.tar.bz2
 # Figure out architecture
 val=$(more /proc/cpuinfo | grep model);b=${val:13:5};b=${b,,};echo "Architecture $b" 
 # Add python header files to shared package dir -- there has to be an easier way to move all the files
-cp ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* /usr/local/lib 
-cp ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* /usr/lib 
-cp ASI_linux_mac_SDK_V1.28/lib/zwo/1.18/linux_sdk/include/ASICamera2.h /usr/local/lib 
-cp ASI_linux_mac_SDK_V1.28/lib/zwo/1.18/linux_sdk/include/ASICamera2.h /usr/lib 
-cd ASI_linux_mac_SDK_*/lib
+sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* /usr/local/lib 
+sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* /usr/lib 
+sudo cp ~/ASI_linux_mac_SDK_V1.28/include/ASICamera2.h /usr/local/lib 
+sudo cp ~/ASI_linux_mac_SDK_V1.28/include/ASICamera2.h /usr/lib 
+sudo cd ASI_linux_mac_SDK_*/lib
 sudo install asi.rules /lib/udev/rules.d 
 
 # Install python package and requirements : Check if above still required
@@ -23,13 +25,18 @@ sudo apt install -y libasicamera2 python3-dev
 
 git clone https://github.com/seeing-things/zwo.git
 cd zwo/python
-# Why the hell is this required --- there must be docs for this somewhere
-cp ~/ASI_linux_mac_SDK_V1.28/lib/zwo/1.18/linux_sdk/include/ASICamera2.h  .
-cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* .
-cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* build/lib.linux-armv6l-3.9/
-cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* dist/
-python3 setup.py install 
+# THis will fail but create directories to copy header files into so we can make it run again
+sudo python3 setup.py install 
 
+# Doesnt look in the right dir just copy it
+sudo cp ~/ASI_linux_mac_SDK_V1.28/include/ASICamera2.h  ~/zwo/python/
+sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/
+
+
+sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/build/lib.linux-armv6l-3.9/
+sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/dist/
+# And now it will work
+sudo python3 setup.py install 
 
 
 # The _asi package is in build/lib.linux-armv6l-3.9/ , the asi package is hosted in the zwo folder, the header and so files are required everywhere for some goddamn reason and i dont want to figure out which lcoations are required, as 1 was required for install and 1 for deployment, i dont recall which was correct  
