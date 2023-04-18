@@ -93,8 +93,6 @@ def main():
     os.remove(file_handler.img_path)
     main()
 
-
-def make_tarfile(output_filename, source_dir):
     
 
 class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it does?
