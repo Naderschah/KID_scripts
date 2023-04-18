@@ -118,7 +118,6 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             raise Exception("No camera detected check drivers")
         else:
             logging.info("ZWO camera detected")
-            self.camera = asi.Camera(0)
         rtn, self.info = asi.ASIGetCameraProperty(0)
         if rtn != asi.ASI_SUCCESS:  # ASI_SUCCESS == 0
             # FIXME: On restart camera needs to be reconnected - find a way to do that digitally
@@ -217,7 +216,9 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
     def auto_exp_compute_settings(self):
         """Camera needs some time to determine correct exposure value
         This will be handled in this section
+        Method from https://github.com/python-zwoasi/python-zwoasi/blob/master/zwoasi/examples/zwoasi_demo.py
         """
+        asi.ASIStartVideoCapture(self.info.CameraID)
         sleep_interval = 0.100
         df_last = None
         gain_last = None
@@ -225,11 +226,10 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         matches = 0
         while True:
             time.sleep(sleep_interval)
-            settings = self.camera.get_control_values()
-            df = self.camera.get_dropped_frames()
-            exposure = settings['Exposure']
+            df = asi.ASIGetDroppedFrames(self.info.CameraID)
+            exposure = asi.GetControlValue(self.info.CameraID, 1)
             if df != df_last:
-                logging.debug('Exposure: {exposure:f} Dropped frames: {df:d}'.format(exposure=settings['Exposure'],df=df))
+                logging.debug('Exposure: {exposure:f} Dropped frames: {df:d}'.format(exposure=exposure,df=df))
             if exposure == exposure_last:
                 matches += 1
             else:
