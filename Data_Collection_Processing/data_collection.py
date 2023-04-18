@@ -287,8 +287,8 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
                 res = subprocess.check_output(['exiftool', '-ExposureTime={}'.format(exposure), '-ISO={}'.format(self.config['ISO']), 
                                             '-Model={}'.format(self.config['Model']),'-Make={}'.format(self.config['Brand']), im_name],stderr=subprocess.STDOUT,check=True)
                 os.remove(im_name+'_original')
-            except:
-                logging.error('Writing exif data to {} failed\nWriting data to log instead\nExposure:{}\nISO:{}\nError: {}'.format(im_name,exposure,self.config['ISO'],res.check_output()))
+            except Exception as e:
+                logging.error('Writing exif data to {} failed\nWriting data to log instead\nExposure:{}\nISO:{}\nError:{}'.format(im_name,exposure,self.config['ISO'],e))
 
 
 
