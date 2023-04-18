@@ -180,7 +180,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         config_subset[0] = int(self.config['ISO'])
         auto_exp=False
         if 'Auto'==self.config['Exposure']:
-            self.config = self.config.pop('Exposure')
+            self.config.pop('Exposure')
             auto_exp = True
 
         elif "/" in self.config['Exposure']:
@@ -240,7 +240,8 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
                 break
             df_last = df
             exposure_last = exposure
-            
+        asi.ASIStopVideoCapture(self.info.CameraID)
+        logging.info('Stopped Video Capture\nExposure: {}'.format(exposure))
 
     
     def finish(self):
@@ -276,17 +277,18 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             im_name = "{}.tiff".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
             im.save(im_name)
             # Get exposure value
-            if self.auto_exp: exposure = self.exposure
+            if self.auto_exp: exposure = self.exposure *1e-6 #microsec
             else: exposure = self.config['Exposure']
             # Now to write to the exif data
-            try: # Common exif tags: https://exiftool.org/TagNames/EXIF.html
-                # TODO: Add calibration matrices etc also take calibration matrices
-                res = subprocess.check_output['exiftool', '-ExposureTime={}'.format(exposure), '-ISO={}'.format(self.config['ISO']), 
-                                              '-Model={}'.format(self.config['Model']),'-Make={}'.format(self.config['Brand']), im_name]
-                # Raises exception if nonzero
-                res.check_returncode()
+            # Common exif tags: https://exiftool.org/TagNames/EXIF.html
+            # TODO: Add calibration matrices etc also take calibration matrices
+            try: 
+                # Raises exception if nonzero return code
+                res = subprocess.check_output(['exiftool', '-ExposureTime={}'.format(exposure), '-ISO={}'.format(self.config['ISO']), 
+                                            '-Model={}'.format(self.config['Model']),'-Make={}'.format(self.config['Brand']), im_name],stderr=subprocess.STDOUT,check=True)
+                os.remove(im_name+'_original')
             except:
-                logging.error('Writing exif data to {} failed\nWriting data to log instead\nExposure:{}\nISO:{}\n'.format(im_name,exposure,self.config['ISO']))
+                logging.error('Writing exif data to {} failed\nWriting data to log instead\nExposure:{}\nISO:{}\nError: {}'.format(im_name,exposure,self.config['ISO'],res.check_output()))
 
 
 
