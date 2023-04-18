@@ -229,7 +229,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             rtn, df = asi.ASIGetDroppedFrames(self.info.CameraID)
             rtn, exposure, _ = asi.ASIGetControlValue(self.info.CameraID, 1)
             if df != df_last:
-                logging.debug('Exposure: {} Dropped frames: {}'.format(exposure=exposure,df=df))
+                logging.debug('Exposure: {} Dropped frames: {}'.format(exposure,df))
             if exposure == exposure_last:
                 matches += 1
             else:
