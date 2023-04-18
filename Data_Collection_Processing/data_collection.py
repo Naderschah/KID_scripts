@@ -199,6 +199,10 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         if auto_exp:
             # Sets AutoExpTargetBrightness to 100
             asi.ASISetControlValue(self.info.CameraID, 12, 100, asi.ASI_TRUE)
+            # Set autoadjust exposure -> Value doesnt matter will be autoadjusted later
+            asi.ASISetControlValue(self.info.CameraID, 1, 100, asi.ASI_TRUE)
+            # Run twice, doesnt always take if run once
+            asi.ASISetControlValue(self.info.CameraID, 1, 100, asi.ASI_TRUE)
             # Before each image the camera will need to autocompute these settings, the computation is moved before imagee capture
             self.auto_exp = True
 
@@ -225,7 +229,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             df = self.camera.get_dropped_frames()
             exposure = settings['Exposure']
             if df != df_last:
-            logging.debug('Exposure: {exposure:f} Dropped frames: {df:d}'.format(exposure=settings['Exposure'],df=df))
+                logging.debug('Exposure: {exposure:f} Dropped frames: {df:d}'.format(exposure=settings['Exposure'],df=df))
             if exposure == exposure_last:
                 matches += 1
             else:
