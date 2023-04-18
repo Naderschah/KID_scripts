@@ -3,7 +3,7 @@
 
 sudo apt update 
 sudo apt upgrade -y
-sudo apt install -y git wget tar vim python3-setuptools python3-numpy swig python3-dev python3-suntime tmux # Basic utility requirement (tmux for persistent session over ssh)
+sudo apt install -y git wget tar exiftool vim python3-setuptools python3-numpy swig python3-dev python3-suntime tmux # Basic utility requirement (tmux for persistent session over ssh)
 
 # Get SDK
 wget -O ZWO-SDK.tar.bz2 "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas"

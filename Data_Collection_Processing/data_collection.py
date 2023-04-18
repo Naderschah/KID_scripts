@@ -7,11 +7,11 @@ import copy
 import time
 import logging
 import re
-import sys
 import time
 import numpy as np
 from PIL import Image
 import tarfile
+import subprocess
 
 try:
     import asi
@@ -109,6 +109,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
                    14:'ASI_ERROR_VIDEO_MODE_ACTIVE',15:'ASI_ERROR_EXPOSURE_IN_PROGRESS',16:'ASI_ERROR_GENERAL_ERROR',
                    17:'ASI_ERROR_END'}
     # TODO: Add error codes to failures
+    auto_exp = False
 
     def __init__(self,config_handler) -> None:
         self.config = config_handler.camera
@@ -117,6 +118,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             raise Exception("No camera detected check drivers")
         else:
             logging.info("ZWO camera detected")
+            self.camera = asi.Camera(0)
         rtn, self.info = asi.ASIGetCameraProperty(0)
         if rtn != asi.ASI_SUCCESS:  # ASI_SUCCESS == 0
             # FIXME: On restart camera needs to be reconnected - find a way to do that digitally
@@ -160,19 +162,19 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         Name output : index
         Gain 0
         Exposure 1
-        WB_R 2
-        WB_B  ...
-        Offset
-        BandWidth
-        Flip
-        AutoExpMaxGain
-        AutoExpMaxExpMS
-        AutoExpTargetBrightness
-        HardwareBin 10
-        HighSpeedMode
-        MonoBin
-        Temperature
-        GPS 14
+        WB_R 3
+        WB_B 4
+        Offset 5
+        BandWidth 6
+        Flip 9
+        AutoExpMaxGain 10
+        AutoExpMaxExpMS 11
+        AutoExpTargetBrightness 12
+        HardwareBin  13
+        HighSpeedMode 14
+        MonoBin 18
+        Temperature 8 (not writable)
+        GPS 22 (not writable - 0 )
         """
         config_subset = {}
         # add relevant indexes and do typing
@@ -185,9 +187,9 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         elif "/" in self.config['Exposure']:
             n, d = self.config['Exposure'].split('/')
             # convert to micro s
-            config_subset[1] = int(int(n)/int(d)*1e6)
+            config_subset[1] = int(float(n)/float(d)*1e6)
         else:
-            config_subset[1] = int(self.config['Exposure'])*1e6
+            config_subset[1] = float(self.config['Exposure'])*1e6
 
         for key in config_subset:
             # Params (cam id, control caps reference, value to bne set, bool autoadjust value)
@@ -196,8 +198,9 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         
         if auto_exp:
             # Sets AutoExpTargetBrightness to 100
-            asi.ASISetControlValue(self.info.CameraID, 9, 100, asi.ASI_TRUE)
-
+            asi.ASISetControlValue(self.info.CameraID, 12, 100, asi.ASI_TRUE)
+            # Before each image the camera will need to autocompute these settings, the computation is moved before imagee capture
+            self.auto_exp = True
 
         # Print to log file
         logging.info("Final Configuration:")
@@ -207,6 +210,33 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             rtn, value, _ = asi.ASIGetControlValue(self.info.CameraID, caps.ControlType)
             logging.info('{}:{}'.format(caps.Name, value))
         
+    def auto_exp_compute_settings(self):
+        """Camera needs some time to determine correct exposure value
+        This will be handled in this section
+        """
+        sleep_interval = 0.100
+        df_last = None
+        gain_last = None
+        exposure_last = None
+        matches = 0
+        while True:
+            time.sleep(sleep_interval)
+            settings = self.camera.get_control_values()
+            df = self.camera.get_dropped_frames()
+            exposure = settings['Exposure']
+            if df != df_last:
+            logging.debug('Exposure: {exposure:f} Dropped frames: {df:d}'.format(exposure=settings['Exposure'],df=df))
+            if exposure == exposure_last:
+                matches += 1
+            else:
+                matches = 0
+            if matches >= 5:
+                # Record Exposure time
+                self.exposure = exposure
+                break
+            df_last = df
+            exposure_last = exposure
+            
 
     
     def finish(self):
@@ -216,7 +246,8 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
     
 
     def capture_image_and_download(self, timeout = 100):
-        # What is bIsDark seems to be a boolean -- Dark images?
+        if self.auto_exp: self.auto_exp_compute_settings()
+        # What is bIsDark seems to be a boolean -- Dark images? -- seperate setting for this in sdk so dont know
         rtn = asi.ASIStartExposure(self.info.CameraID, bIsDark=False)
         if rtn != asi.ASI_SUCCESS: logging.error('Failed to initiate image exposure')
         start= time.time()
@@ -238,7 +269,20 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             print('Data return value: ',rtn)
             out = np.reshape(out, (self.info.MaxHeight,self.info.MaxWidth, 3))
             im = Image.fromarray(out)
-            im.save("{}.tiff".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S")))
+            im_name = "{}.tiff".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+            im.save(im_name)
+            # Get exposure value
+            if self.auto_exp: exposure = self.exposure
+            else: exposure = self.config['Exposure']
+            # Now to write to the exif data
+            try: # Common exif tags: https://exiftool.org/TagNames/EXIF.html
+                # TODO: Add calibration matrices etc also take calibration matrices
+                res = subprocess.check_output['exiftool', '-ExposureTime={}'.format(exposure), '-ISO={}'.format(self.config['ISO']), 
+                                              '-Model={}'.format(self.config['Model']),'-Make={}'.format(self.config['Brand']), im_name]
+                # Raises exception if nonzero
+                res.check_returncode()
+            except:
+                logging.error('Writing exif data to {} failed\nWriting data to log instead\nExposure:{}\nISO:{}\n'.format(im_name,exposure,self.config['ISO']))
 
 
 
