@@ -2,16 +2,20 @@
 ### Sample script to take an image with controlled parameters
 
 import time
-# TODO: Exposure seems limited find out why
 from picamera2 import Picamera2, Preview, Controls
 from libcamera import controls
 import sys
-import json
+from PIL import Image
+import numpy as np
+import os
 
-picam2 = Picamera2()
+
+tuning = Picamera2.load_tuning_file(os.path.abspath("./tuningfile_ov5647.json"))
+picam2 = Picamera2(tuning=tuning)
 num_im = 1
 dark = False
 filename = None
+hdr = False
 # Set values as required
 ctrl = {    "ExposureTime":100000 + 22,  # It subtracts 22 for some reason from each exposure
             "AnalogueGain":1, 
@@ -51,9 +55,15 @@ if '-e' in sys.argv:
         ctrl["ExposureTime"] = picam2.sensor_modes[-1]['exposure_limits'][0]
     # TODO : Comment may be wrong
     print('Set exposure to: ', ctrl["ExposureTime"])
-if '-h' in sys.argv:
+
+if '-hdr' in sys.argv:
+    hdr = True
+
+
+if '-h' in sys.argv and not '-hdr' in sys.argv:
     print('Takes images with everything turned off and ISO at minimum value\nColor Correction Matrix still needs to be Fixed!\n -b Take bias images (n=100) \n -d take dark images (n=100) \n -n overwrite number of images \n -f filename for output dont add an extension! \n -e change exposure (10^-6s)')
     sys.exit(0)
+
 
 
 print('Initiating with filename:{}, num_im: {}'.format(filename,num_im))
@@ -72,6 +82,7 @@ print('Initiating with filename:{}, num_im: {}'.format(filename,num_im))
 capture_config = picam2.create_still_configuration(raw={})
 picam2.configure(capture_config)
 picam2.set_controls(ctrl)
+exp_lim = picam2.sensor_modes[-1]['exposure_limits']
 
 
 picam2.start()
@@ -79,29 +90,53 @@ picam2.start()
 time.sleep(2)
 
 meta = {}
-for i in range(0,num_im):
-    request = picam2.capture_request()
-    if filename is None and num_im>1:
-        request.save_dng("img_{}.dng".format(i))
-        meta["{}_{}".format('img',i)] = request.get_metadata()
-    elif filename is None and num_im==1:
-        request.save_dng("img.dng")
-        request.save("main","img.jpg")
-        filename = "img"
-        meta = request.get_metadata()
-    elif filename is not None and num_im==1:
-        request.save_dng("{}.dng".format(filename))
-        request.save("main","{}.jpg".format(filename))
-        meta = request.get_metadata()
-    elif filename is not None and num_im>1:
-        request.save_dng("{}_{}.dng".format(filename,i))
-        meta["{}_{}".format(filename,i)] = request.get_metadata()
+if not hdr:
+    for i in range(0,num_im):
+        request = picam2.capture_request()
+        if filename is None and num_im>1:
+            request.save_dng("img_{}.dng".format(i))
+            meta["{}_{}".format('img',i)] = request.get_metadata()
+        elif filename is None and num_im==1:
+            request.save_dng("img.dng")
+            request.save("main","img.jpg")
+            filename = "img"
+            meta = request.get_metadata()
+        elif filename is not None and num_im==1:
+            request.save_dng("{}.dng".format(filename))
+            request.save("main","{}.jpg".format(filename))
+            meta = request.get_metadata()
+        elif filename is not None and num_im>1:
+            request.save_dng("{}_{}.dng".format(filename,i))
+            meta["{}_{}".format(filename,i)] = request.get_metadata()
+        request.release()  # requests must always be returned to libcamera
+        print('took image ',i)
+        
+if hdr: 
+    for i in np.linspace(exp_lim[0],exp_lim[1],20):
+        # Make int
+        i = int(i)
+        # Set exp
+        ctrl['ExposureTime'] = i
+        print('Set exp: ',i)
+        picam2.set_controls(ctrl)
+        time.sleep(2)
+        # Take num_im images 
+        for j in range(0,num_im):
+            request = picam2.capture_request()
+            if filename is not None:
+                f="{}_{}_{}.dng".format(filename,i,j)
+                request.save_dng(f)
+            else:
+                f = "img_{}_{}.dng".format(i,j)
+                request.save_dng(f)
+            if j == num_im-1:
+                request.save("main","img.jpg")
+            request.release()  # requests must always be returned to libcamera
+        im = np.asarray(Image.open('img.jpg'))
+        # Break for loop when a third  of image overexposed
+        if np.sum((im==255))/im.size > 0.3:
+            break
 
-    request.release()  # requests must always be returned to libcamera
-    print('Completed image {}'.format(i))
 
-# Write meta json 
-with open('{}_metadata.json'.format(filename),'w') as f:
-    f.write(json.dumps(meta))
 
 picam2.stop()

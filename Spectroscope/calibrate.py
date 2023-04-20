@@ -1,7 +1,6 @@
 """
 Uses captured picture/video to calibrate against solar spectrum
 """
-from PIL import Image
 import requests
 import rawpy
 import numpy as np
@@ -29,7 +28,7 @@ class Calibration:
         return
     
     def run_all_calibration(self,bias_img_dir=None, dark_img_dir=None,lens_img_dir=None,
-                            flat_img_dir=None, rot=None ,crop=None):
+                            flat_img_dir=None, rot=None ,crop=None,px_to_lambda=None):
         """Runs calibration with files available
         most inputs are directory paths
         rot needs to be the path to some image directory to align
@@ -48,14 +47,15 @@ class Calibration:
         else:
             self.calib['mdark']=None
 
-        print('Compute lens calibration --> Code should be double checked')
+        print('Compute lens calibration --> Code should be double checked for new calibration data')
         if lens_img_dir != None: 
             self.calib['mtx'],self.calib['dist'] = compute_lens_correction(lens_img_dir,save=False)
 
         if flat_img_dir != None:
             master_flat(img_dir=flat_img_dir,out_dir=self.master_dir ,mbias=self.calib['mbias'],mdark=self.calib['mdark'])
             self.calib['mflat']=os.path.join(self.master_dir,'master_flat.npy')
-
+        else:
+            self.calib['mflat']=None
         if rot != None:
             im_dat = preprocess_images(img_dir=rot)
             # If lens correction data is available apply first then compute rotation
@@ -67,6 +67,9 @@ class Calibration:
             self.calib['Crop_y'] = find_crop(self.calib['Rotation'],im_dat)
         elif rot == None and crop!=None:
             print('Not computing crop since rotation isnt computed')
+
+        if "px_to_lambda" != None: #FIXME:
+            self.calib['px_to_lambda'] =px_to_lambda
 
         # Ndarray cant be saved
         for key in self.calib:
@@ -88,6 +91,7 @@ class Calibration:
     def process_image_with_calibration(self,im_path):
         '''
         Image needs to be raw ie dng or preaveraged numpy array (preprocess_image only providing im dir)
+        All loaded images are of type uint16 (or rather in the scaling of uint16)
         '''
         if '.dng' in im_path:
             im = spectral_images_to_data(im_path,extra=False)
@@ -100,16 +104,19 @@ class Calibration:
             im = im - mbias
             if np.sum(im<0)>0: 
                 print('{} values negative after bias for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
+                print('{} of which in region of interest {}'.format(np.sum(im[self.calib['Crop_y'][0]:self.calib['Crop_y'][1]]<0),im_path.split('/')[-1]))
         if self.calib['mdark']!=None : 
             mdark = np.load(self.calib['mdark'])
             im = im - mdark
             if np.sum(im<0)>0: 
                 print('{} values negative after dark for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
+                print('{} of which in region of interest {}'.format(np.sum(im[self.calib['Crop_y'][0]:self.calib['Crop_y'][1]]<0),im_path.split('/')[-1]))
         if self.calib['mflat']!=None: 
             mflat = np.load(self.calib['mflat'])
             im = im/mflat
             if np.sum(im<0)>0: 
                 print('{} values negative after flat for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
+                print('{} of which in region of interest {}'.format(np.sum(im[self.calib['Crop_y'][0]:self.calib['Crop_y'][1]]<0),im_path.split('/')[-1]))
         if 'dist' in self.calib: 
             lens_dir = {}
             lens_dir['mtx'] = self.calib['mtx']
@@ -117,19 +124,34 @@ class Calibration:
             im = correct_lens(lens_dir,im)
             if np.sum(im<0)>0: 
                 print('{} values negative after lens correction for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
+                print('{} of which in region of interest {}'.format(np.sum(im[self.calib['Crop_y'][0]:self.calib['Crop_y'][1]]<0),im_path.split('/')[-1]))
         if 'Rotation' in self.calib: 
             im = scipy.ndimage.rotate(im,self.calib['Rotation'])
             if np.sum(im<0)>0: 
-                print('{} values negative after lens correction for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
+                print('{} values negative after rotation for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
+                print('{} of which in region of interest {}'.format(np.sum(im[self.calib['Crop_y'][0]:self.calib['Crop_y'][1]]<0),im_path.split('/')[-1]))
         if 'Crop_y' in self.calib: 
             im = im[self.calib['Crop_y'][0]:self.calib['Crop_y'][1]]
-            if np.sum(im<0)>0: 
-                print('{} values negative after lens correction for {}'.format(np.sum(im<0),im_path.split('/')[-1]))
         print('Setting negatives to 0')
         im[im<0] = 0
         print('changing back to uint16')
         print('Px count above 90% exposure is {:.4}'.format(np.sum(im/2**16*100 > 85)/im.size*100))
         return im.astype(np.uint16)
+
+
+    def process_spectrum(self, img, out=None):
+        """Use calibration data to generate spectrum of image
+        img :- image path
+        """
+        img = self.process_image_with_calibration(img)
+        # Bin data to effective pixel size
+        img = skimage.measure.block_reduce(img, block_size=(2,2,1),func=np.mean,cval=0)
+        # Generate px to wavelength array
+        px_wavelengths = np.polyval(self.calib['px_to_lambda'],np.linspace(0,img.shape[1]-1,img.shape[1]))
+        # Generate mean value for each px for each color
+        mean = np.mean(img,axis=0)
+        return px_wavelengths,mean
+
 
 
 
@@ -169,35 +191,57 @@ def get_solar_spectrum():
     return dat
 
 
+def bin_spectrum(dat, bins):
+    """
+    dat -- data to be binned in form [wavelength, y]
+    bins -- wavelengths
+    """
+    # We make the distance between wavebands symmetric
+    min,max = np.diff(bins)[0], np.diff(bins)[-1]
+    # Find closest to (min and max )+symm in sol data 
+    min,max = np.abs(dat[0]-min-bins[0]).argmin(),np.abs(dat[0]-bins[-1]-max).argmin()
+
+    binning = np.digitize(dat[0][min:max:], bins) # s.t.  bins[i-1] <= x < bins[i]
+
+    # Bin the data accordingly
+    return np.array([dat[1][min:max:][binning == i].sum() for i in range(0, len(bins))])
+
 
 def get_baader_response(graph_path='./moon-skyglow-wavelength.csv'):
     """Generated from image using  apps.automeris.io/wpd
     output: nm, percent transmission
     """
     dat = np.loadtxt(graph_path,delimiter=', ',dtype=np.float64)
-    dat[::,1] /= 100 
-    return dat
+    y = dat[::,1]/100 
+    x = dat[::,0]
+    ## Make monotonically increasing
+    #y = np.interp(np.linspace(x.min(),x.max(),4*len(dat)),x,y)
+    #x = np.linspace(x.min(),x.max()-1,4*len(dat))
+    return [x,y]
 
 
 
-def spectral_images_to_data(im_path,extra=False):
+def spectral_images_to_data(im_path,custom_debayer=False,extra=False):
     """
     im_path : os path like object to the dng file
-    extra : Return without debayering
+    custom_debayer : 2x2 sampling so one gets an effective pixel and an image with half dim as uint16
+    extra : Return color array, color string and image without debayering as uint16
     """
     # Convert dngs to tiff using ImageMagick mogrify
     im = rawpy.imread(im_path)
     if extra: # This part isnt in use anymore
         color_array = im.raw_colors
         im_data = im.raw_image_visible.copy()
-        im_data=im_data.astype(np.float64)
         # The color array includes 0,1,2,3 with 3 colors the color string makes this a bit more obvious
         color_str = "".join([chr(im.color_desc[i]) for i in im.raw_pattern.flatten()])
+        # 10 bit image to 16
+        im_data = (im_data/(2**10-1)*(2**16-1)).astype(np.uint16)
         return color_array,color_str, im_data
     else: 
         # TODO: Look into demosaic algorithms 
         # 11:DHT best according to https://www.libraw.org/node/2306
-        return im.postprocess(demosaic_algorithm=rawpy.DemosaicAlgorithm(11),half_size=False, 
+        if not custom_debayer:
+            return im.postprocess(demosaic_algorithm=rawpy.DemosaicAlgorithm(11),half_size=False, 
                               # 3color no brightness adjustment (default is False -> ie auto brightness)
                               four_color_rgb=False,no_auto_bright=True,
                               # If using dcb demosaicing
@@ -220,6 +264,26 @@ def spectral_images_to_data(im_path,extra=False):
                               # V_out = gamma[0]*V_in^gamma 
                               gamma=(1,1), chromatic_aberration=(1,1),bad_pixels_path=None
                               )
+        else:
+            # Resample colors so that each px = 2x2 px
+            color_str = "".join([chr(im.color_desc[i]) for i in im.raw_pattern.flatten()])
+            # 10 bit image
+            im = im.raw_image_visible.copy()
+            print(im.max())
+            w,h = im.shape
+            # Reshape so that color is lowest level
+            im=im.reshape(w//2,h//2,4)
+            # make array with 3 color channels --> assuming greens are the same
+            arr = np.zeros((w//2,h//2,3))
+            colors = {'R':0,'G':1,'B':2}
+            color_order = [colors[i] for i in color_str]
+            for i in color_order:
+                if i != 1:
+                    arr[::,::,i] = im[::,::,i]
+                else:
+                    arr[::,::,i] += im[::,::,i]/2
+            arr = (arr/(2**10-1)*(2**16-1)).astype(np.uint16)
+            return arr
   
 
 
@@ -280,6 +344,7 @@ def preprocess_images(img_dir,out_img=None,master_bias=None,master_dark=None,len
     """
     im = None
     count = 0 
+    
     for i in os.listdir(img_dir):
         try:
             if im is None:
@@ -468,3 +533,99 @@ def correct_lens(calibration,img):
         newcameramtx, roi = cv.getOptimalNewCameraMatrix(calibration['mtx'], calibration['dist'], (w,h), 1, (w,h))
     dst = cv.undistort(img, calibration['mtx'], calibration['dist'], None, newcameramtx)
     return dst
+
+
+
+def make_hdr(imdir,average = True):
+    # First average all taken images (mainly for calibration)
+    if average:
+        # Create dictionary with paths and exp time as key
+        img_dict = {}
+        for i in os.listdir(imdir):
+            if '_' in i: 
+                e = int(i.split('_')[-2])
+                if e in img_dict:
+                    img_dict[e].append(os.path.join(imdir,i))
+                else:
+                    img_dict[e] = [os.path.join(imdir,i)]
+        # If the files dont need moving
+        if len(img_dict.keys()) ==0:
+            for i in os.listdir(imdir):
+                if os.path.isdir(os.path.join(imdir,i)) and 'hdr' not in i:
+                    img_dict[int(i)] =[]
+
+
+        # Save location for averaged images
+        if not os.path.isdir(os.path.join(imdir,'hdr')): os.mkdir(os.path.join(imdir, 'hdr'))
+
+        # Create average of each exposure 
+        for key in img_dict:
+            if not os.path.isdir(os.path.join(imdir, str(key))): os.mkdir(os.path.join(imdir, str(key)))
+            # Move files
+            for i in img_dict[key]:
+                os.rename(str(i),os.path.join(*i.split('/')[:-1:], str(key), i.split('/')[-1]))
+            # TODO; Uses deprecated
+            preprocess_images(os.path.join(imdir, str(key)),out_img=os.path.join(imdir, 'hdr', str(key)+'.npy'),master_bias='/home/felix/KID_scripts/Spectroscope/cal_images/computed_cal_files/master_bias.npy')#
+    
+        fin = os.path.join(imdir, 'hdr')
+    else: fin=imdir # TODO THis wont work either change imaging script or this, but lets see
+    # Get image lsit for combining into hdr
+    im_list = os.listdir(fin)
+    # Convert and rescale to uint8
+    img_list = [cv.convertScaleAbs(np.load(os.path.join(fin,fn)).astype(np.uint16), alpha=(255.0/65535.0)) for fn in im_list]
+    
+    # Debvec
+    # time record in us
+    exposure_times = np.array([float(i.strip('.npy'))*1e-6 for i in im_list])
+    # Merge exposures to HDR image
+    merge_debevec = cv.createMergeDebevec()
+    hdr_debevec = merge_debevec.process(img_list, exposure_times)
+    tonemap1 = cv.createTonemap(gamma=2.2)
+    res_debevec = tonemap1.process(hdr_debevec)
+    cv.imwrite("ldr_debvec.hdr", res_debevec)
+    res_debevec_8bit = np.clip(res_debevec*255, 0, 255).astype('uint8')
+    cv.imwrite("ldr_debvec.jpg", res_debevec_8bit)
+    del exposure_times, merge_debevec,hdr_debevec,tonemap1,res_debevec,res_debevec_8bit
+    #Robertson
+    exposure_times = np.array([float(i.strip('.npy'))*1e-6 for i in im_list])
+    merge_robertson = cv.createMergeRobertson()
+    hdr_robertson = merge_robertson.process(img_list, exposure_times)
+    # Tonemap HDR image
+    tonemap2 = cv.createTonemap(gamma=1.3)
+    res_robertson = tonemap2.process(hdr_robertson)
+    cv.imwrite("ldr_robertson.hdr", res_robertson)
+    res_robertson_8bit = np.clip(res_robertson*255, 0, 255).astype('uint8')
+    cv.imwrite("ldr_robertson.jpg", res_robertson_8bit)
+    del exposure_times, merge_robertson,hdr_robertson,tonemap2,res_robertson,res_robertson_8bit
+    
+
+    # Exposure fusion using Mertens
+    merge_mertens = cv.createMergeMertens()
+    res_mertens = merge_mertens.process(img_list)
+    cv.imwrite("fusion_mertens.hdr", res_mertens)
+    res_mertens_8bit = np.clip(res_mertens*255, 0, 255).astype('uint8')
+    cv.imwrite("fusion_mertens.jpg", res_mertens_8bit)
+
+    return 
+
+
+def compute_rel_change(nf_data,wf_data,binning=(2,2),noprint=False):
+    """Computes the relative change data
+    and returns it for each color channel with std"""
+    rgb = [(wf_data/nf_data)[::,::,i] for i in range(0,3)]
+    if not noprint:
+        print('\n{} total datapoints'.format(rel_change.size))
+        print('{} faulty datapoints : {:.2}%'.format(np.sum(np.isinf(rel_change)),np.sum(np.isinf(rel_change))/rel_change.size))
+        # The nan data arrises from the filter lens combination being opaque so we set it to 0 
+        print('{} opaque data points : {:.2}%\n'.format(np.sum(np.isnan(rel_change)), np.sum(np.isnan(rel_change))/rel_change.size))
+    for i in rgb:
+        # We know that all divisions by zero will be opague to this wavelength so we can already predefine the individual wavlength acceptance range 
+        i[np.isnan(i)] =0
+        i[np.isinf(i)] = np.nan
+    if binning is not None:
+        for i in range(0,3):
+            rgb[i] = skimage.measure.block_reduce(rgb[i], block_size=binning,func=np.mean,cval=0)
+    # Get the mean value along each column and its standard deviation
+    rgb_y = [np.nanmean(c_dat, axis=0) for c_dat in rgb]
+    rgb_std = [np.nanstd(c_dat, axis=0) for c_dat in rgb]
+    return rgb_y, rgb_std
