@@ -18,6 +18,12 @@ try:
 except:
     pass
 
+try:
+    from picamera2 import Picamera2, Preview, Controls
+    from libcamera import controls
+except:
+    pass
+
 """Class that handles camera control, i.e. image taking 
 Below is a list of backends and camera combinations that are to be used 
     gphoto2 (http://www.gphoto.org/proj/libgphoto2/support.php):
@@ -50,6 +56,7 @@ consoleHandler.setFormatter(logFormatter)
 ROOTLOGGER.addHandler(consoleHandler)
 
 ROOTLOGGER.info('Created ROOTLOGGER')
+
 
 
 def main():
@@ -407,9 +414,17 @@ class Camera_Handler_gphoto:
         ------
         config_dict --> dictionary with Key=Configentry:value=Configvalue
         """ 
+        # Manual exposure setting (not required but remnant of first write up of the code)
+        if config_dict['Exposure'] != 'Auto':
+            config_dict['/main/capturesettings/shutterspeed'] = config_dict['Exposure']
+            config_dict.pop("Exposure")
+        else: #FIXME
+            config_dict.pop("Exposure")
+            # Set exposure mode to Fv so that Av is set minimum Tv (shutter speed) auto  (not sure what dial is but whatever)
+            config_dict['/main/capturesettings/autoexposuremodedial'] = 34 # Fv
+            config_dict['/main/capturesettings/autoexposuremode'] = 34 # Fv
+            config_dict['/main/capturesettings/aperture'] = 1
 
-        config_dict['/main/capturesettings/shutterspeed'] = config_dict['Exposure']
-        config_dict.pop("Exposure")
         config_dict['/main/imgsettings/iso'] = config_dict['ISO'] # 
         config_dict.pop("ISO")
         config_dict['/main/imgsettings/imageformatsd'] = config_dict['Image_Format'] # 
@@ -423,7 +438,7 @@ class Camera_Handler_gphoto:
 
 
     def set_config_entry(self,entry, value):
-        """Returns camera internal configuration"""
+        """Applies individual config"""
         result = subprocess.run(["gphoto2 --set-config {}={}".format(entry, value)], capture_output=True,check=True,shell=True)
         if result.returncode != 0:
            ROOTLOGGER.critical("CMD: gphoto2 --set-config-value {}={}".format(entry, value))
@@ -432,12 +447,67 @@ class Camera_Handler_gphoto:
 
         return None
     
+
     def finish(self):
         pass
 
 
+class Camera_Handler_picamera:
+    ctrl = {
+            "AnalogueGain":1, 
+            "AeEnable": False,  # Auto Exposure Value
+            "AwbEnable":False,  # Auto White Balance
+            "Brightness":0, # Default
+            "ColourGains":(1.,1.), # Red and blue gains -> corresponds to as perceived
+            "ExposureValue":0, # No exposure Val compensation --> Shouldnt be required as AeEnable:False
+            "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off, # No Noise reduction --> No idea how it works
+            }
+    auto_exp = False
+    def __init__(self, config_handler) -> None:
+        self.config = config_handler.camera
+        # Create camera object with tuning file
+        self.tuning = Picamera2.load_tuning_file(self.config['tuning_file'])
+        self.camera = Picamera2(tuning=self.tuning)
+        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'][0] # (min,max, current)
+        # Create capture config
+        self.capture_config = self.camera.create_still_configuration(raw={})
+        # Set ctrl settings
+        self.set_up_camera()
+
+    def set_up_camera(self):
+        """Set settings"""
+        if self.camera['Exposure'] != 'Auto':
+            self.ctrl['ExposureTime'] = self.config['Exposure']*1e6
+        else: 
+            # Make it auto set with agc algorithm but disable changes to iso 
+            # Enable Auto exposure (algorithm aec/agc)
+            self.ctrl['AeEnable'] = True
+            # Get tuning algorithm for Ae 
+            agc = Picamera2.find_tuning_algo(self.tuning, "rpi.agc")
+            # TODO: Try if this gain range works
+            agc["exposure_modes"]["normal"] = {"shutter": [self.exp_limits[0], self.exp_limits[1]], "gain": [1.0,1.0]}
+            self.auto_exp = True
+        # Configure sensor mode etc
+        self.camera.configure(self.capture_config)
+        # Set other settings
+        self.camera.set_controls(self.ctrl)
 
 
+    def capture_image(self):
+        if self.auto_exp:
+            # Let it compute the exposure time TODO Check this works
+            self.camera.start_preview()
+            self.camera.start()
+            time.sleep(5)
+            self.camera.stop_preview()
+
+        im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+        
+        request = self.camera.capture_request()
+        request.save_dng(im_name)
+
+    def finish(self):
+        self.camera.stop()
     
 """Class that handles data transfer from local storage (most likely a rasberry pi) to the network storage"""
 class File_Handler:

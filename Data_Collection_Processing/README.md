@@ -1,8 +1,23 @@
 Here will live all the code related to data collection, file management, and data processing 
 
-
-
 ZWO-ASI python https://pypi.org/project/camera-zwo-asi/
+
+Common issue with gphoto camera:
+- Needs to be turned on and off
+    - If cause is io simply remount virtual filesystem
+    - If otherwise --- Find buggggg
+
+Try CM4 boot from usb as emmc is not large enough
+
+Try raspi zero with German code
+
+
+To get canons to shoot on auto exposure with fixed ISO we need to select the correct mode, cause why would you be able to do this digitally only
+
+Camera Fv mode : Av -> minimum value (ie maximum opening as f=focallength/effectiveaperature --> and this has to be set digitally) 
+And Tv auto mode:  Everything else off 
+
+Ask how one can set auto shutterspeed, or do i need to try change etc
 
 
 ## Method of Operation:
