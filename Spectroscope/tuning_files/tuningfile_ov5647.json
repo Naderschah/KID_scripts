@@ -362,7 +362,7 @@
         {
             "rpi.contrast":
             {
-                "ce_enable": 1,
+                "ce_enable": 0,
                 "gamma_curve":
                 [
                     0, 0,

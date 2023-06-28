@@ -72,6 +72,9 @@ def main():
     elif config.camera['Brand'] == "ZWO": 
         ROOTLOGGER.info("Using zwo asi sdk backend (not sure what asi stands for)")
         camera = Camera_Hanlder_ZWO(config)
+    elif config.camera['Brand'] == "PiCamera": 
+        ROOTLOGGER.info("Using picamera backend")
+        camera = Camera_Handler_picamera(config)
 
     # Check time to start
     sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
@@ -299,7 +302,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
 
 
 
-class Camera_Handler_gphoto:
+class Camera_Handler_gphoto: #FIXME: Auto exposure check if Jake or Reynier know about setting -> otherwise write own code to set exposure by loading image after taking it with target max brightness 90%
     """Note that a lot of methods are implemented for camera control that arent used, that is just so the commands dont need to be searched for, odds are they wont directly work without more configuration"""
     def __init__(self, config_handler) -> None:
         # Check connected camera corresponds to config file specification
@@ -486,6 +489,13 @@ class Camera_Handler_picamera:
             agc = Picamera2.find_tuning_algo(self.tuning, "rpi.agc")
             # TODO: Try if this gain range works
             agc["exposure_modes"]["normal"] = {"shutter": [self.exp_limits[0], self.exp_limits[1]], "gain": [1.0,1.0]}
+            # Set area for auto exposure if provided
+            if 'AutoExpArea' in self.config:
+                # TODO: Check bool is automatically convrted
+                if self.config['AutoExpArea']:
+                    # This refers to image areas, can be found here under rpi.agc https://datasheets.raspberrypi.com/camera/raspberry-pi-camera-guide.pdf
+                    # Here we focus fully on the central area TODO: Check if better to use px and check after imaging
+                    agc["metering_modes"]['centre-weighted']['weights'] = [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
             self.auto_exp = True
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
