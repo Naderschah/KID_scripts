@@ -490,7 +490,8 @@ class Camera_Handler_picamera:
     def __init__(self, config_handler) -> None:
         self.config = config_handler.camera
         # Create camera object with tuning file
-        self.tuning = Picamera2.load_tuning_file(self.config['tuning_file'])
+        ROOTLOGGER.info('Loading tuning file: {}'.format(self.config['Tuning_File']))
+        self.tuning = Picamera2.load_tuning_file(self.config['Tuning_File'])
         self.camera = Picamera2(tuning=self.tuning)
         self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         # Create capture config
@@ -510,13 +511,6 @@ class Camera_Handler_picamera:
             agc = Picamera2.find_tuning_algo(self.tuning, "rpi.agc")
             # TODO: Try if this gain range works
             agc["exposure_modes"]["normal"] = {"shutter": [self.exp_limits[0], self.exp_limits[1]], "gain": [1.0,1.0]}
-            # Set area for auto exposure if provided
-            if 'AutoExpArea' in self.config:
-                # TODO: Check bool is automatically convrted
-                if self.config['AutoExpArea']:
-                    # This refers to image areas, can be found here under rpi.agc https://datasheets.raspberrypi.com/camera/raspberry-pi-camera-guide.pdf
-                    # Here we focus fully on the central area TODO: Check if better to use px and check after imaging
-                    agc["metering_modes"]['centre-weighted']['weights'] = [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
             self.auto_exp = True
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
