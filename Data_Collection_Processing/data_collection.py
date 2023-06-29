@@ -30,7 +30,11 @@ Below is a list of backends and camera combinations that are to be used
 Canon 6D
 Canon RP
     Note that for this backend I will not be using the python ported library but simply will execute the CMD line from within python
+
+The config file is expected to be called config.ini in the same directory as this file
+As long as config is in it and it ends in ini it is recognized
 """
+
 DEBUG = True
 
 
@@ -61,6 +65,19 @@ ROOTLOGGER.info('Created ROOTLOGGER')
 
 def main():
     # Retrieve config file
+    config_path = os.path.join(CODE_DIR,'config.ini')
+    
+    # Check for some config file
+    if os.path.isfile(config_path):
+        pass
+    else:
+        fl = os.listdir(CODE_DIR)
+        bool_fl = ['config' in i and i.endswith('.ini') for i in fl]
+        if sum(bool_fl)>1 or sum(bool_fl)==0:
+            print('Fix the config file\nIt needs to be in the same directory as the script and have config in its name and end in .ini')
+        filen = [fl[i] for i in range(len(fl)) if bool_fl[i]][0]
+        config_path = os.path.join(CODE_DIR,filen)
+    
     config = Config_Handler(path=os.path.join(CODE_DIR,'config.ini'))
 
     # Sets up folder for night and switches directory
