@@ -66,7 +66,7 @@ ROOTLOGGER.info('Created ROOTLOGGER')
 def main():
     # Retrieve config file
     config_path = os.path.join(CODE_DIR,'config.ini')
-    
+
     # Check for some config file
     if os.path.isfile(config_path):
         pass
@@ -99,7 +99,7 @@ def main():
         start = sun.get_sunset_time()
         end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
     else:
-        start = datetime.datetime.now()
+        start = datetime.datetime.now(datetime.timezone.utc)
         end = start+datetime.timedelta(days=1)
 
     ROOTLOGGER.info('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
