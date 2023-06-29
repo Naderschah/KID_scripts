@@ -77,9 +77,13 @@ def main():
         camera = Camera_Handler_picamera(config)
 
     # Check time to start
-    sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
-    start = sun.get_sunset_time()
-    end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
+    if not DEBUG:
+        sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
+        start = sun.get_sunset_time()
+        end = sun.get_sunrise_time(datetime.datetime.now()+datetime.timedelta(days=1))
+    else:
+        start = datetime.datetime.now()
+        end = start+datetime.timedelta(days=1)
 
     ROOTLOGGER.info('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
 
@@ -471,7 +475,7 @@ class Camera_Handler_picamera:
         # Create camera object with tuning file
         self.tuning = Picamera2.load_tuning_file(self.config['tuning_file'])
         self.camera = Picamera2(tuning=self.tuning)
-        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'][0] # (min,max, current)
+        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         # Create capture config
         self.capture_config = self.camera.create_still_configuration(raw={})
         # Set ctrl settings
@@ -479,13 +483,13 @@ class Camera_Handler_picamera:
 
     def set_up_camera(self):
         """Set settings"""
-        if self.camera['Exposure'] != 'Auto':
+        if self.config['Exposure'] != 'Auto':
             self.ctrl['ExposureTime'] = self.config['Exposure']*1e6
         else: 
             # Make it auto set with agc algorithm but disable changes to iso 
             # Enable Auto exposure (algorithm aec/agc)
             self.ctrl['AeEnable'] = True
-            # Get tuning algorithm for Ae 
+            # Get tuning algorithm for Ae # TODO Mod file itself
             agc = Picamera2.find_tuning_algo(self.tuning, "rpi.agc")
             # TODO: Try if this gain range works
             agc["exposure_modes"]["normal"] = {"shutter": [self.exp_limits[0], self.exp_limits[1]], "gain": [1.0,1.0]}
@@ -501,23 +505,29 @@ class Camera_Handler_picamera:
         self.camera.configure(self.capture_config)
         # Set other settings
         self.camera.set_controls(self.ctrl)
+        
 
 
-    def capture_image(self):
+    def capture_image_and_download(self):
+        """
+        Starting and stopping camera occurs within this block to save on resouces
+        As images wont be taken frequently
+        """
+        self.camera.start()
         if self.auto_exp:
             # Let it compute the exposure time TODO Check this works
-            self.camera.start_preview()
-            self.camera.start()
-            time.sleep(5)
-            self.camera.stop_preview()
+            #self.camera.start_preview()
+            time.sleep(3)
 
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         
         request = self.camera.capture_request()
         request.save_dng(im_name)
+        # TODO: For spectroscope add option to check central area well enough exposed, maybe add HDR to increase sensitivity - remember px leakage
+        self.camera.stop()
 
     def finish(self):
-        self.camera.stop()
+        self.camera.close()
     
 """Class that handles data transfer from local storage (most likely a rasberry pi) to the network storage"""
 class File_Handler:
