@@ -505,11 +505,11 @@ class Camera_Handler_picamera:
             if self.config['Spectro_Metering']: # FIXME: Check this works otherwise scrap and do manually
                 ROOTLOGGER.info('Using Spectroscope Metering') # TODO Change metering in ctrls
                 # Each number represents a section of the image
-                self.tuning['algorithms'][7]['rpi.agc']['metering_modes']['centre-weighted'] = [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
+                self.tuning['algorithms'][7]['rpi.agc']['metering_modes']['centre-weighted']['weights'] = [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
             # Always use 1 gain
-            self.tuning['algorithms'][7]['rpi.agc']['exposure_modes']['normal']['gain'] = [1]*len(self.tuning['algorithms']['rpi.agc']['exposure_modes']['normal']['gain'])
+            self.tuning['algorithms'][7]['rpi.agc']['exposure_modes']['normal']['gain'] = [1]*len(self.tuning['algorithms'][7]['rpi.agc']['exposure_modes']['normal']['gain'])
         # luminance 0 disables algorithms effect
-        self.tuning['algorithms'][7]['rpi.alsc']["luminance_strength"] = 0
+        self.tuning['algorithms'][8]['rpi.alsc']["luminance_strength"] = 0
         # Reduce load on isp
         self.tuning['algorithms'][8]['rpi.alsc']["n_iter"] = 1
         # Disable gamma curve
@@ -551,10 +551,10 @@ class Camera_Handler_picamera:
         if self.auto_exp:
             while True:
                 request = self.camera.capture_request()
-                new_exp = self.determine_exp(image=request.make_array(), 
-                                        img_exp_time=request.get_metadata()["ExposureTime"])
-                request.release()
-
+                #new_exp = self.determine_exp(image=request.make_array(), 
+                #                        img_exp_time=request.get_metadata()["ExposureTime"])
+                #request.release()
+                new_exp = True
                 if new_exp == True:
                     # Break loop if exposure good
                     break
