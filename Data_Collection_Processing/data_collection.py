@@ -548,7 +548,7 @@ class Camera_Handler_picamera:
         As images wont be taken frequently
         """
         self.camera.start()
-        time.sleep(1)
+        time.sleep(3)
 
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         if self.auto_exp:
