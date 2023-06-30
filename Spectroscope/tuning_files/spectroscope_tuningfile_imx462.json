@@ -53,7 +53,7 @@
                     "centre-weighted":
                     {
                         "weights": [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
-                    },
+                    }
                 },
                 "exposure_modes":
                 {
@@ -61,7 +61,7 @@
                     {
                         "shutter": [ 10, 30000, 60000 ],
                         "gain": [ 1.0, 1.0 ]
-                    },
+                    }
                 },
                 "constraint_modes":
                 {
