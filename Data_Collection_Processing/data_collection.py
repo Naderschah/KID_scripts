@@ -41,6 +41,9 @@ DEBUG = True
 
 ### IMPORTANT: I do not get how loggers work, I have had only inconsistent reults this may need reworking
 CODE_DIR = os.path.abspath(os.getcwd())
+# Code Dir and File dir mustnt overlap
+FILE_DIR = os.path.abspath(__file__)
+FILE_PARENT = '/'+'/'.join(FILE_DIR.split('/')[:-1:])+'/'
 
 logFormatter = logging.Formatter("%(asctime)s [line: %(lineno)d] [%(levelname)-5.5s]  \n%(message)s")
 ROOTLOGGER = logging.getLogger()
@@ -71,14 +74,16 @@ def main():
     if os.path.isfile(config_path):
         pass
     else:
-        fl = os.listdir(CODE_DIR)
+        fl = os.listdir(FILE_PARENT)
         bool_fl = ['config' in i and i.endswith('.ini') for i in fl]
         if sum(bool_fl)>1 or sum(bool_fl)==0:
             print('Fix the config file\nIt needs to be in the same directory as the script and have config in its name and end in .ini')
-        filen = [fl[i] for i in range(len(fl)) if bool_fl[i]][0]
-        config_path = os.path.join(CODE_DIR,filen)
+        filen = [fl[i] for i in range(len(fl)) if bool_fl[i]]
+        if len(filen)==0:
+            raise Exception('Config File not Found')
+        config_path = os.path.join(FILE_PARENT,filen[0])
     
-    config = Config_Handler(path=os.path.join(CODE_DIR,'config.ini'))
+    config = Config_Handler(path=config_path)
 
     # Sets up folder for night and switches directory
     file_handler = File_Handler(config.paths)
@@ -504,13 +509,7 @@ class Camera_Handler_picamera:
         if self.config['Exposure'] != 'Auto':
             self.ctrl['ExposureTime'] = self.config['Exposure']*1e6
         else: 
-            # Make it auto set with agc algorithm but disable changes to iso 
-            # Enable Auto exposure (algorithm aec/agc)
-            self.ctrl['AeEnable'] = True
-            # Get tuning algorithm for Ae # TODO Mod file itself
-            agc = Picamera2.find_tuning_algo(self.tuning, "rpi.agc")
-            # TODO: Try if this gain range works
-            agc["exposure_modes"]["normal"] = {"shutter": [self.exp_limits[0], self.exp_limits[1]], "gain": [1.0,1.0]}
+            # Auto exposure wouldnt work proper so manually computing later
             self.auto_exp = True
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
@@ -525,17 +524,48 @@ class Camera_Handler_picamera:
         As images wont be taken frequently
         """
         self.camera.start()
-        if self.auto_exp:
-            # Let it compute the exposure time TODO Check this works
-            #self.camera.start_preview()
-            time.sleep(3)
+        time.sleep(1)
 
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
-        
-        request = self.camera.capture_request()
-        request.save_dng(im_name)
-        # TODO: For spectroscope add option to check central area well enough exposed, maybe add HDR to increase sensitivity - remember px leakage
+        if self.auto_exp:
+            while True:
+                request = self.camera.capture_request()
+                new_exp = self.determine_exp(image=request.make_array(), 
+                                        img_exp_time=request.get_metadata()["ExposureTime"])
+                request.release()
+
+                if new_exp == True:
+                    # Break loop if exposure good
+                    break
+                # Otherwise change and continue
+                self.ctrl['ExposureTime'] = new_exp
+                self.camera.set_controls(self.ctrl)
+        else:
+            request = self.camera.capture_request()
+            request.save_dng(im_name)
+            request.release()
+
+
         self.camera.stop()
+
+    def determine_exp(self, image, img_exp_time, min_of_max=0.7, max_val = 0.8, img_bounds=None):
+        '''Function to determine appropriate exposure from previous image -> based on max val
+        All parameters are given relative to maximum acceptable value
+        img_bounds is for interest in specfic areas
+
+        returns True if condition satisfied so that min_of_max < max(img) < max_val
+
+        TODO: Need to find out what dtype gets returned and if this differs (should be uint10)
+        '''
+        dtype_max = 2**10-1
+        max_val *= dtype_max
+        min_of_max *= dtype_max
+        if min_of_max < np.max(image) < max_val:
+            return True
+        else:
+            # Compute new time -> attempt to get midpoint of max and min of max
+            # TODO: Add polynomial calibration for exposure time per iso for linearity
+            return int(img_exp_time * 2*np.max(image)/(min_of_max+max_val))
 
     def finish(self):
         self.camera.close()
