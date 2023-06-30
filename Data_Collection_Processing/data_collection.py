@@ -498,25 +498,25 @@ class Camera_Handler_picamera:
         ROOTLOGGER.info('Loading tuning file: {}'.format(self.config['Tuning_File']))
         self.tuning = Picamera2.load_tuning_file(self.config['Tuning_File'])
         # Overwrite tuning file parameters
-        self.tuning['algorithms']['rpi.black_level']['black_level'] = 0
-        self.tuning['algorithms']['rpi.geq']['offset'] = 0
-        self.tuning['algorithms']['rpi.geq']['slope'] = 0
+        self.tuning['algorithms'][0]['rpi.black_level']['black_level'] = 0
+        self.tuning['algorithms'][4]['rpi.geq']['offset'] = 0
+        self.tuning['algorithms'][4]['rpi.geq']['slope'] = 0
         if 'Spectro_Metering' in self.config:  
-            if self.config['Spectro_Metering'] # FIXME: Check this works otherwise scrap and do manually
+            if self.config['Spectro_Metering']: # FIXME: Check this works otherwise scrap and do manually
                 ROOTLOGGER.info('Using Spectroscope Metering') # TODO Change metering in ctrls
                 # Each number represents a section of the image
-                self.tuning['algorithms']['rpi.agc']['metering_modes']['centre-weighted'] = [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
+                self.tuning['algorithms'][7]['rpi.agc']['metering_modes']['centre-weighted'] = [4 , 4 , 4 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0]
             # Always use 1 gain
-            self.tuning['algorithms']['rpi.agc']['exposure_modes']['normal']['gain'] = [1]*len(self.tuning['algorithms']['rpi.agc']['exposure_modes']['normal']['gain'])
+            self.tuning['algorithms'][7]['rpi.agc']['exposure_modes']['normal']['gain'] = [1]*len(self.tuning['algorithms']['rpi.agc']['exposure_modes']['normal']['gain'])
         # luminance 0 disables algorithms effect
-        self.tuning['algorithms']['rpi.alsc']["luminance_strength"] = 0
+        self.tuning['algorithms'][7]['rpi.alsc']["luminance_strength"] = 0
         # Reduce load on isp
-        self.tuning['algorithms']['rpi.alsc']["n_iter"] = 1
+        self.tuning['algorithms'][8]['rpi.alsc']["n_iter"] = 1
         # Disable gamma curve
-        self.tuning['algorithms']['rpi.contrast']["ce_enable"] = 0
+        self.tuning['algorithms'][9]['rpi.contrast']["ce_enable"] = 0
         # Disable color correction matrix for all color temperatures
-        for i in range(len(self.tuning['algorithms']['rpi.ccm']['ccms'])):
-            self.tuning['algorithms']['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
+        for i in range(len(self.tuning['algorithms'][11]['rpi.ccm']['ccms'])):
+            self.tuning['algorithms'][11]['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
 
         self.camera = Picamera2(tuning=self.tuning)
         self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
