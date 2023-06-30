@@ -549,22 +549,21 @@ class Camera_Handler_picamera:
 
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         if self.auto_exp:
-            while True:
+            while False:
                 request = self.camera.capture_request()
-                #new_exp = self.determine_exp(image=request.make_array(), 
-                #                        img_exp_time=request.get_metadata()["ExposureTime"])
-                #request.release()
-                new_exp = True
+                new_exp = self.determine_exp(image=request.make_array(), 
+                                        img_exp_time=request.get_metadata()["ExposureTime"])
+                request.release()
                 if new_exp == True:
                     # Break loop if exposure good
                     break
                 # Otherwise change and continue
                 self.ctrl['ExposureTime'] = new_exp
                 self.camera.set_controls(self.ctrl)
-        else:
-            request = self.camera.capture_request()
-            request.save_dng(im_name)
-            request.release()
+            
+        request = self.camera.capture_request()
+        request.save_dng(im_name)
+        request.release()
 
 
         self.camera.stop()
