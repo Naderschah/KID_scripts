@@ -490,6 +490,8 @@ class Camera_Handler_picamera:
             "ColourGains":(1.,1.), # Red and blue gains -> corresponds to as perceived
             "ExposureValue":0, # No exposure Val compensation --> Shouldnt be required as AeEnable:False
             "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off, # No Noise reduction --> No idea how it works
+            "AeMeteringMode":controls.AeMeteringModeEnum.CentreWeighted,
+            'AeExposureMode':controls.AeExposureModeEnum.Normal,
             }
     auto_exp = False
     def __init__(self, config_handler) -> None:
@@ -532,6 +534,7 @@ class Camera_Handler_picamera:
         else: 
             # Auto exposure wouldnt work proper so manually computing later
             self.auto_exp = True
+            self.ctrl['AeEnable'] = True
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
         # Set other settings
