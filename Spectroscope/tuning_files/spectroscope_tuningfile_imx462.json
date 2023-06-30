@@ -60,7 +60,7 @@
                     "normal":
                     {
                         "shutter": [ 10, 30000, 60000 ],
-                        "gain": [ 1.0, 1.0 ]
+                        "gain": [ 1.0, 1.0, 1.0 ]
                     }
                 },
                 "constraint_modes":
