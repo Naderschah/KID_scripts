@@ -500,7 +500,6 @@ class Camera_Handler_picamera:
         ROOTLOGGER.info('Loading tuning file: {}'.format(self.config['Tuning_File']))
         self.tuning = Picamera2.load_tuning_file(self.config['Tuning_File'])
         # Get exposure limits
-        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         # Overwrite tuning file parameters
         self.tuning['algorithms'][0]['rpi.black_level']['black_level'] = 0
         self.tuning['algorithms'][4]['rpi.geq']['offset'] = 0
@@ -523,6 +522,7 @@ class Camera_Handler_picamera:
             self.tuning['algorithms'][11]['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
 
         self.camera = Picamera2(tuning=self.tuning)
+        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         # Create capture config
         self.capture_config = self.camera.create_still_configuration(raw={})
         # Set ctrl settings
