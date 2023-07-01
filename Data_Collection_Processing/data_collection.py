@@ -554,7 +554,6 @@ class Camera_Handler_picamera:
 
         time.sleep(3)
 
-        im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         if self.auto_exp:
             while True:
                 request = self.camera.capture_request()
@@ -572,8 +571,19 @@ class Camera_Handler_picamera:
         else:
             request = self.camera.capture_request()
         # Save last request made, for auto_exp it will have the correct exposure
+        im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         request.save_dng(im_name)
+        exp = request.get_metadata()["ExposureTime"]
         request.release()
+        if hasattr(self.config, 'hdr'):
+            if self.config['hdr']:
+                for i in [0.5,0.8,0.9,1.1,1.2,1.5]:
+                    self.ctrl['ExposureTime'] = i*exp
+                    self.camera.set_controls(self.ctrl)
+                    request = self.camera.capture_request()
+                    im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+                    request.save_dng(im_name)
+                    request.release()
         # Stop camera and wait for next
         self.camera.stop()
 

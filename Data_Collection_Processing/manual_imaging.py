@@ -32,7 +32,7 @@ def main2():
     GPIO.setup(gpio_led_red_anode, GPIO.OUT, initial=GPIO.HIGH)
     GPIO.setup(gpio_led_green_anode, GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(gpio_button_sig_out, GPIO.OUT, initial=GPIO.HIGH)
-    GPIO.setup(gpio_button_sig_in, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(gpio_button_sig_in, GPIO.IN)
 
     # Retrieve config file
     config_path = os.path.join(CODE_DIR,'config.ini')
@@ -64,12 +64,13 @@ def main2():
 
     GPIO.output(gpio_led_green_anode, GPIO.HIGH)
     GPIO.output(gpio_led_red_anode, GPIO.LOW)
-
+    print('Starting loop')
     # Wait for button press
     while True:
         # Check if state changed to low, the wait for edge was too odd to use
+        print(GPIO.input(gpio_button_sig_in))
         if GPIO.input(gpio_button_sig_in) == GPIO.LOW:
-            time.sleep(.5)
+            time.sleep(.3)
             if GPIO.input(gpio_button_sig_in) == GPIO.LOW:
                 # Set imaging indicator
                 GPIO.output(gpio_led_green_anode, GPIO.LOW)
