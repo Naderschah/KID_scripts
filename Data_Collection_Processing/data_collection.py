@@ -523,6 +523,8 @@ class Camera_Handler_picamera:
 
         self.camera = Picamera2(tuning=self.tuning)
         self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
+        # Get img output bit depth
+        self.bit_depth = self.camera.sensor_modes[-1]['bit_depth']
         # Create capture config
         self.capture_config = self.camera.create_still_configuration(raw={})
         # Set ctrl settings
@@ -556,7 +558,8 @@ class Camera_Handler_picamera:
         if self.auto_exp:
             while True:
                 request = self.camera.capture_request()
-                new_exp = self.determine_exp(image=request.make_array(), 
+                # Request make array does not return bit depth image but pillow so uint8
+                new_exp = self.determine_exp(image=request.make_array('main'), 
                                         img_exp_time=request.get_metadata()["ExposureTime"])
                 if new_exp == True:
                     # Break loop if exposure good
@@ -583,8 +586,10 @@ class Camera_Handler_picamera:
 
         TODO: Need to find out what dtype gets returned and if this differs (should be uint10)
         '''
+        image = image.astype(np.float64)
         print('Old exposure ', img_exp_time)
-        dtype_max = 2**10-1
+        # request returns pillow image --> always uint8
+        dtype_max = 255
         max_val *= dtype_max
         min_of_max *= dtype_max
         if min_of_max < np.max(image) < max_val:
