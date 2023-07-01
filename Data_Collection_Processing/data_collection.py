@@ -35,7 +35,7 @@ The config file is expected to be called config.ini in the same directory as thi
 As long as config is in it and it ends in ini it is recognized
 """
 
-DEBUG = True
+DEBUG = False
 
 
 
