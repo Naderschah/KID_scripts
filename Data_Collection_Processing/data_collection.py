@@ -576,7 +576,8 @@ class Camera_Handler_picamera:
                     # Wait so that camera board can set new values
                     while True:
                         metadata = self.camera.capture_metadata()
-                        if metadata["ExposureTime"]==self.ctrl['ExposureTime'] and metadata["AnalogueGain"]==self.ctrl['AnalogueGain']:
+                        if int(metadata["ExposureTime"])==int(self.ctrl['ExposureTime']) and int(metadata["AnalogueGain"])==int(self.ctrl['AnalogueGain']):
+                            print(int(metadata["ExposureTime"]),int(self.ctrl['ExposureTime']) and int(metadata["AnalogueGain"]),int(self.ctrl['AnalogueGain']))
                             break
                         else:
                             time.sleep(0.1)
