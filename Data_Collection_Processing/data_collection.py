@@ -575,6 +575,7 @@ class Camera_Handler_picamera:
                     self.camera.set_controls(self.ctrl)
                     # Wait so that camera board can set new values (add a counterr in case it starts bugging out)
                     counter = 0
+                    print('Waiting for camera board to recognize control changes')
                     while True:
                         counter +=1
                         metadata = self.camera.capture_metadata()
@@ -635,7 +636,7 @@ class Camera_Handler_picamera:
             # In case exp limit was already reached (Exp limit is never set always about 15 ms shorter)
             if img_exp_time >= self.exp_limits[1]*0.95:
                 print('Increasing AnalogueGain as exp limit is reached')
-                self.ctrl['AnalogueGain'] +=1
+                self.ctrl['AnalogueGain'] = int(self.ctrl['AnalogueGain']+1)
                 new = self.exp_limits[1]/2
             return new
 
