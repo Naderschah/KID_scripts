@@ -573,11 +573,12 @@ class Camera_Handler_picamera:
                     # Otherwise change and continue
                     self.ctrl['ExposureTime'] = new_exp
                     self.camera.set_controls(self.ctrl)
-                    # Wait so that camera board can set new values
+                    # Wait so that camera board can set new values (add a counterr in case it starts bugging out)
+                    counter = 0
                     while True:
+                        counter +=1
                         metadata = self.camera.capture_metadata()
-                        if int(metadata["ExposureTime"])==int(self.ctrl['ExposureTime']) and int(metadata["AnalogueGain"])==int(self.ctrl['AnalogueGain']):
-                            print(int(metadata["ExposureTime"]),int(self.ctrl['ExposureTime']) and int(metadata["AnalogueGain"]),int(self.ctrl['AnalogueGain']))
+                        if int(self.ctrl['ExposureTime'])*0.9<int(metadata["ExposureTime"])<int(self.ctrl['ExposureTime'])*1.1 and int(metadata["AnalogueGain"])==int(self.ctrl['AnalogueGain']) or counter >= 10:
                             break
                         else:
                             time.sleep(0.1)
