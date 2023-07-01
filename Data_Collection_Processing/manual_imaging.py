@@ -9,8 +9,8 @@ The code used is based on the Data collection class for the picamera
 
 gpio_led_red_anode = 2
 gpio_led_green_anode = 14
-gpio_button_sig_out = 15
-gpio_button_sig_in  = 18
+gpio_button_sig_out = 20
+gpio_button_sig_in  = 21
 
 import sys
 import RPi.GPIO as GPIO
@@ -25,14 +25,14 @@ FILE_PARENT = '/'+'/'.join(FILE_DIR.split('/')[:-1:])+'/'
 
 
 
-def main():
+def main2():
     # GPIO Set up - pin names 
     GPIO.setmode(GPIO.BCM)
     # Set out in and initial state 
     GPIO.setup(gpio_led_red_anode, GPIO.OUT, initial=GPIO.HIGH)
     GPIO.setup(gpio_led_green_anode, GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(gpio_button_sig_out, GPIO.OUT, initial=GPIO.HIGH)
-    GPIO.setup(gpio_button_sig_in, GPIO.IN)
+    GPIO.setup(gpio_button_sig_in, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
     # Retrieve config file
     config_path = os.path.join(CODE_DIR,'config.ini')
@@ -69,13 +69,15 @@ def main():
         GPIO.output(gpio_led_green_anode, GPIO.HIGH)
         GPIO.output(gpio_led_red_anode, GPIO.LOW)
         # The below waits until button press (rising edge -> Low to high)
-        channel = GPIO.wait_for_edge(gpio_button_sig_in, GPIO.RISING)
-
-        # Set imaging indicator
-        GPIO.output(gpio_led_green_anode, GPIO.LOW)
-        GPIO.output(gpio_led_red_anode, GPIO.HIGH)
-
-        camera.capture_image_and_download()
+        GPIO.wait_for_edge(gpio_button_sig_in, GPIO.FALLING)
+        # It sometimes triggers randomly
+        time.sleep(.3)
+        if GPIO.input(gpio_button_sig_in) == GPIO.LOW:
+            # Set imaging indicator
+            GPIO.output(gpio_led_green_anode, GPIO.LOW)
+            GPIO.output(gpio_led_red_anode, GPIO.HIGH)
+    
+            camera.capture_image_and_download()
 
     # The below is for cameras that require closing at the end of the night
     camera.finish()
@@ -84,10 +86,11 @@ def main():
 
 
 
-if __name__=='_main__':
+if __name__=='__main__':
     try:
-        main()
-    except:
+        main2()
+    except Exception as e:
+        print(e)
         # To show exception occured
         GPIO.output(gpio_led_green_anode, GPIO.LOW)
         GPIO.output(gpio_led_red_anode, GPIO.HIGH)
