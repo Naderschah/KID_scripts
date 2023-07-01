@@ -499,6 +499,8 @@ class Camera_Handler_picamera:
         # Create camera object with tuning file
         ROOTLOGGER.info('Loading tuning file: {}'.format(self.config['Tuning_File']))
         self.tuning = Picamera2.load_tuning_file(self.config['Tuning_File'])
+        # Get exposure limits
+        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         # Overwrite tuning file parameters
         self.tuning['algorithms'][0]['rpi.black_level']['black_level'] = 0
         self.tuning['algorithms'][4]['rpi.geq']['offset'] = 0
@@ -521,7 +523,6 @@ class Camera_Handler_picamera:
             self.tuning['algorithms'][11]['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
 
         self.camera = Picamera2(tuning=self.tuning)
-        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         # Create capture config
         self.capture_config = self.camera.create_still_configuration(raw={})
         # Set ctrl settings
@@ -534,7 +535,7 @@ class Camera_Handler_picamera:
         else: 
             # Auto exposure wouldnt work proper so manually computing later
             self.auto_exp = True
-            self.ctrl['AeEnable'] = True
+            #self.ctrl['AeEnable'] = True
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
         # Set other settings
@@ -548,27 +549,29 @@ class Camera_Handler_picamera:
         As images wont be taken frequently
         """
         self.camera.start()
+
         time.sleep(3)
 
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         if self.auto_exp:
-            while False:
+            while True:
                 request = self.camera.capture_request()
                 new_exp = self.determine_exp(image=request.make_array(), 
                                         img_exp_time=request.get_metadata()["ExposureTime"])
-                request.release()
                 if new_exp == True:
                     # Break loop if exposure good
                     break
+                request.release()
+                
                 # Otherwise change and continue
                 self.ctrl['ExposureTime'] = new_exp
                 self.camera.set_controls(self.ctrl)
-            
-        request = self.camera.capture_request()
+        else:
+            request = self.camera.capture_request()
+        # Save last request made, for auto_exp it will have the correct exposure
         request.save_dng(im_name)
         request.release()
-
-
+        # Stop camera and wait for next
         self.camera.stop()
 
     def determine_exp(self, image, img_exp_time, min_of_max=0.7, max_val = 0.8, img_bounds=None):
@@ -580,6 +583,7 @@ class Camera_Handler_picamera:
 
         TODO: Need to find out what dtype gets returned and if this differs (should be uint10)
         '''
+        print('Old exposure ', img_exp_time)
         dtype_max = 2**10-1
         max_val *= dtype_max
         min_of_max *= dtype_max
