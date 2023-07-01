@@ -586,18 +586,24 @@ class Camera_Handler_picamera:
 
         TODO: Need to find out what dtype gets returned and if this differs (should be uint10)
         '''
-        image = image.astype(np.float64)
+        if 'IMG_Bounds' in self.config:
+            bounds = [int(i) for i in self.config['IMG_Bounds'].split(',')]
+            image = image.astype(np.float64)[bounds[0]:bounds[2], bounds[1]:bounds[3]]
+        else:
+            image = image.astype(np.float64)
         print('Old exposure ', img_exp_time)
         # request returns pillow image --> always uint8
         dtype_max = 255
         max_val *= dtype_max
         min_of_max *= dtype_max
+        print('Want {} < {} < {}'.format(min_of_max, np.max(image), max_val))
         if min_of_max < np.max(image) < max_val:
             return True
         else:
             # Compute new time -> attempt to get midpoint of max and min of max
             # TODO: Add polynomial calibration for exposure time per iso for linearity
-            return int(img_exp_time * 2*np.max(image)/(min_of_max+max_val))
+            print('Computed exp: {}'.format(int(img_exp_time * (min_of_max+max_val)/(2*np.max(image)))))
+            return int(img_exp_time * (min_of_max+max_val)/(2*np.max(image)))
 
     def finish(self):
         self.camera.close()
