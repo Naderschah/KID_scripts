@@ -562,7 +562,7 @@ class Camera_Handler_picamera:
                     # Request make array does not return bit depth image but pillow so uint8
                     img=request.make_array('main')
                     exp = request.get_metadata()["ExposureTime"]
-                    f.write('{},{},{},{}\n'.format(exp, np.min(img), np.mean(img), np.max(img)))
+                    f.write('{},{},{},{},{}\n'.format(exp,self.ctrl['AnalogueGain'] np.min(img), np.mean(img), np.max(img)))
                     new_exp = self.determine_exp(image=img, 
                                             img_exp_time=exp)
                     if new_exp == True:
@@ -573,6 +573,8 @@ class Camera_Handler_picamera:
                     # Otherwise change and continue
                     self.ctrl['ExposureTime'] = new_exp
                     self.camera.set_controls(self.ctrl)
+                    # Wait so that camera board can set new values
+                    time.sleep(0.1)
         else:
             request = self.camera.capture_request()
         # Save last request made, for auto_exp it will have the correct exposure
@@ -617,8 +619,18 @@ class Camera_Handler_picamera:
         else:
             # Compute new time -> attempt to get midpoint of max and min of max
             # TODO: Add polynomial calibration for exposure time per iso for linearity
-            print('Computed exp: {}'.format(int(img_exp_time * (min_of_max+max_val)/(2*np.max(image)))))
-            return int(img_exp_time * (min_of_max+max_val)/(2*np.max(image)))
+            new  = int(img_exp_time * (min_of_max+max_val)/(2*np.max(image)))
+            print('Computed exp: {}'.format(new))
+            # In case exp limits is reached
+            if new>self.exp_limits[1]:
+                print('Setting maximum exposure value {}'.format(self.exp_limits[1]))
+                new = self.exp_limits[1]
+            # In case exp limit was already reached
+            if img_exp_time == self.exp_limits[1]:
+                print('Increasing AnalogueGain as exp limit is reached')
+                self.ctrl['AnalogueGain'] +=1
+                new = self.exp_limits[1]/2
+            return new
 
     def finish(self):
         self.camera.close()
