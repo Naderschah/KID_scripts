@@ -553,21 +553,26 @@ class Camera_Handler_picamera:
         self.camera.start()
 
         time.sleep(3)
-
+        
         if self.auto_exp:
-            while True:
-                request = self.camera.capture_request()
-                # Request make array does not return bit depth image but pillow so uint8
-                new_exp = self.determine_exp(image=request.make_array('main'), 
-                                        img_exp_time=request.get_metadata()["ExposureTime"])
-                if new_exp == True:
-                    # Break loop if exposure good
-                    break
-                request.release()
-                
-                # Otherwise change and continue
-                self.ctrl['ExposureTime'] = new_exp
-                self.camera.set_controls(self.ctrl)
+            with open('exposure_linearity.csv', 'a') as f:
+                f.write('New\nExposure, Min, Mean, Max\n')
+                while True:
+                    request = self.camera.capture_request()
+                    # Request make array does not return bit depth image but pillow so uint8
+                    img=request.make_array('main')
+                    exp = request.get_metadata()["ExposureTime"]
+                    f.write('{},{},{},{}\n'.format(exp, np.min(img), np.mean(img), np.max(img)))
+                    new_exp = self.determine_exp(image=img, 
+                                            img_exp_time=exp)
+                    if new_exp == True:
+                        # Break loop if exposure good
+                        break
+                    request.release()
+
+                    # Otherwise change and continue
+                    self.ctrl['ExposureTime'] = new_exp
+                    self.camera.set_controls(self.ctrl)
         else:
             request = self.camera.capture_request()
         # Save last request made, for auto_exp it will have the correct exposure
