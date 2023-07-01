@@ -62,22 +62,25 @@ def main2():
     elif config.camera['Brand'] == "PiCamera": 
         camera = Camera_Handler_picamera(config)
 
+    GPIO.output(gpio_led_green_anode, GPIO.HIGH)
+    GPIO.output(gpio_led_red_anode, GPIO.LOW)
 
     # Wait for button press
     while True:
-        # We are now ready so disable red enable green
-        GPIO.output(gpio_led_green_anode, GPIO.HIGH)
-        GPIO.output(gpio_led_red_anode, GPIO.LOW)
-        # The below waits until button press (rising edge -> Low to high)
-        GPIO.wait_for_edge(gpio_button_sig_in, GPIO.FALLING)
-        # It sometimes triggers randomly
-        time.sleep(.3)
+        # Check if state changed to low, the wait for edge was too odd to use
         if GPIO.input(gpio_button_sig_in) == GPIO.LOW:
-            # Set imaging indicator
-            GPIO.output(gpio_led_green_anode, GPIO.LOW)
-            GPIO.output(gpio_led_red_anode, GPIO.HIGH)
+            time.sleep(.5)
+            if GPIO.input(gpio_button_sig_in) == GPIO.LOW:
+                # Set imaging indicator
+                GPIO.output(gpio_led_green_anode, GPIO.LOW)
+                GPIO.output(gpio_led_red_anode, GPIO.HIGH)
     
-            camera.capture_image_and_download()
+                camera.capture_image_and_download()
+
+                GPIO.output(gpio_led_green_anode, GPIO.HIGH)
+                GPIO.output(gpio_led_red_anode, GPIO.LOW)
+            else:
+                pass
 
     # The below is for cameras that require closing at the end of the night
     camera.finish()
