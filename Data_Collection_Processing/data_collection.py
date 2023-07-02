@@ -533,7 +533,7 @@ class Camera_Handler_picamera:
     def set_up_camera(self):
         """Set settings"""
         if self.config['Exposure'] != 'Auto':
-            self.ctrl['ExposureTime'] = self.config['Exposure']*1e6
+            self.ctrl['ExposureTime'] = int(self.config['Exposure']*1e6)
         else: 
             # Auto exposure wouldnt work proper so manually computing later
             self.auto_exp = True
@@ -593,7 +593,7 @@ class Camera_Handler_picamera:
         if hasattr(self.config, 'hdr'):
             if self.config['hdr']:
                 for i in [0.5,0.8,0.9,1.1,1.2,1.5]:
-                    self.ctrl['ExposureTime'] = i*exp
+                    self.ctrl['ExposureTime'] = int(i*exp)
                     self.camera.set_controls(self.ctrl)
                     request = self.camera.capture_request()
                     im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
