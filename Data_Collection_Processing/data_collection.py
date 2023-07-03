@@ -677,7 +677,6 @@ class Camera_Handler_picamera:
         num_im -> number of images to be taken
         ISO -> ISO at which to take -> list is acceptable and will iterate over
         """
-        self.camera.start()
         bias_path = os.path.join(os.environ['HOME'], 'Bias')
         os.mkdir(bias_path)
         multip_iso = False
@@ -694,7 +693,7 @@ class Camera_Handler_picamera:
                 os.mkdir(path)
             else: path = bias_path
             os.chdir(path)
-            self.set_controls()
+            self.camera.set_controls()
             for j in range(num_im):
                 self.capture_image_and_download()
         self.camera.stop()
@@ -705,7 +704,6 @@ class Camera_Handler_picamera:
         Not yet sure how to handle temperature changes from imaging
         for now just take images and see how it changes as a function of time
         """
-        self.camera.start()
         dark_path = os.path.join(os.environ['HOME'], 'Darks')
         os.mkdir(dark_path)
         multip_iso = False
@@ -729,7 +727,7 @@ class Camera_Handler_picamera:
                 else:
                     path = dark_path
                 os.chdir(path)
-                self.set_controls()
+                self.camera.set_controls()
                 for k in num_im:
                     self.capture_image_and_download()
         self.camera.stop()
