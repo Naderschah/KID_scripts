@@ -564,7 +564,7 @@ class Camera_Handler_picamera:
         return
 
 
-    def capture_image_and_download(self):
+    def capture_image_and_download(self,name=None):
         """
         Starting and stopping camera occurs within this block to save on resouces
         As images wont be taken frequently
@@ -598,18 +598,19 @@ class Camera_Handler_picamera:
         # Save last request made, for auto_exp it will have the correct exposure
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         request.save_dng(im_name)
-        exp = request.get_metadata()["ExposureTime"]
-        request.release()
         if hasattr(self.config, 'hdr'):
             if self.config['hdr']=='True':
+                exp = request.get_metadata()["ExposureTime"]
                 for i in [0.5,0.8,0.9,1.1,1.2,1.5]:
                     self.ctrl['ExposureTime'] = int(i*exp)
                     self.set_controls()
                     request = self.camera.capture_request()
                     im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+                    if name != None : im_name = name
                     request.save_dng(im_name)
                     request.release()
         # Stop camera and wait for next
+        request.release()
         self.camera.stop()
 
     def set_controls(self):
@@ -694,7 +695,6 @@ class Camera_Handler_picamera:
                 path = os.path.join(bias_path, str(i))
                 os.mkdir(path)
             else: path = bias_path
-            os.chdir(path)
             self.camera.set_controls(self.ctrl)
             for j in range(num_im):
                 self.capture_image_and_download()
@@ -726,7 +726,7 @@ class Camera_Handler_picamera:
             for j in gain:
                 self.ctrl['AnalogueGain'] = j
                 if multip_iso: 
-                    path = os.path.join(dark_path, str(j))
+                    path = os.path.join(path, str(j))
                     os.mkdir(path)
                 else:
                     path = dark_path
@@ -734,8 +734,33 @@ class Camera_Handler_picamera:
                 self.camera.set_controls(self.ctrl)
                 for k in num_im:
                     self.capture_image_and_download()
-        self.camera.stop()
+                time.sleep(30)
         return
+
+    def take_linearity(self, num_im_exp_sweep=10,num_im_gain_sweep=20,num_im=2):
+        """Sweeps each combination between min max in provided steps, stops when half the image values are at a maximum
+        num_im refers to images per stop
+        put it in some differently lit environments
+        """
+        self.ctrl['ExposureTime'] = self.exp_limits[0]+5
+        self.ctrl['AnalogueGain'] = self.gain_limts[0]
+        exp_range = np.linspace(self.exp_limits[0], self.exp_limits[1], num_im_exp_sweep)
+        gain_range = np.linspace(self.gain_limts[0], self.gain_limts[1], num_im_gain_sweep)
+        linearity_path = os.path.join(os.environ['HOME'], 'Linearity')
+        os.mkdir(linearity_path)
+        os.chdir(linearity_path)
+        for i in exp_range:
+            self.ctrl['ExposureTime'] = i
+            for j in gain_range:
+                self.ctrl['AnalogueGain'] = j
+                self.camera.set_controls(self.ctrl)
+                for k in in num_im:
+                    self.capture_image_and_download(name='{}_{}.dng'.format(i,j))
+        return
+
+
+
+
 
 
     def finish(self):
