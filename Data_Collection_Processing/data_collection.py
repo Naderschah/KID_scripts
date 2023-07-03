@@ -541,6 +541,7 @@ class Camera_Handler_picamera:
 
         self.camera = Picamera2(tuning=self.tuning)
         self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
+        self.gain_limts = self.camera.camera_controls['AnalogueGain']
         # Get img output bit depth
         self.bit_depth = self.camera.sensor_modes[-1]['bit_depth']
         # Create capture config
@@ -676,6 +677,7 @@ class Camera_Handler_picamera:
         num_im -> number of images to be taken
         ISO -> ISO at which to take -> list is acceptable and will iterate over
         """
+        self.camera.start()
         bias_path = os.path.join(os.environ['HOME'], 'Bias')
         os.mkdir(bias_path)
         multip_iso = False
@@ -695,6 +697,7 @@ class Camera_Handler_picamera:
             self.set_controls()
             for j in range(num_im):
                 self.capture_image_and_download()
+        self.camera.stop()
         return 
     
     def take_darks(self, num_im, exp, gain):
@@ -702,6 +705,7 @@ class Camera_Handler_picamera:
         Not yet sure how to handle temperature changes from imaging
         for now just take images and see how it changes as a function of time
         """
+        self.camera.start()
         dark_path = os.path.join(os.environ['HOME'], 'Darks')
         os.mkdir(dark_path)
         multip_iso = False
@@ -728,7 +732,8 @@ class Camera_Handler_picamera:
                 self.set_controls()
                 for k in num_im:
                     self.capture_image_and_download()
-
+        self.camera.stop()
+        return
 
 
     def finish(self):
