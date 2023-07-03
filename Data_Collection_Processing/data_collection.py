@@ -541,8 +541,8 @@ class Camera_Handler_picamera:
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
         # Set other settings
-        self.camera.set_controls(self.ctrl)
-        
+        self.set_controls()
+        return
 
 
     def capture_image_and_download(self):
@@ -572,17 +572,8 @@ class Camera_Handler_picamera:
 
                     # Otherwise change and continue
                     self.ctrl['ExposureTime'] = new_exp
-                    self.camera.set_controls(self.ctrl)
-                    # Wait so that camera board can set new values (add a counterr in case it starts bugging out)
-                    counter = 0
-                    print('Waiting for camera board to recognize control changes')
-                    while True:
-                        counter +=1
-                        metadata = self.camera.capture_metadata()
-                        if int(self.ctrl['ExposureTime'])*0.9<int(metadata["ExposureTime"])<int(self.ctrl['ExposureTime'])*1.1 and int(metadata["AnalogueGain"])==int(self.ctrl['AnalogueGain']) or counter >= 10:
-                            break
-                        else:
-                            time.sleep(0.1)
+                    self.set_controls()
+                    
         else:
             request = self.camera.capture_request()
         # Save last request made, for auto_exp it will have the correct exposure
@@ -594,13 +585,30 @@ class Camera_Handler_picamera:
             if self.config['hdr']:
                 for i in [0.5,0.8,0.9,1.1,1.2,1.5]:
                     self.ctrl['ExposureTime'] = int(i*exp)
-                    self.camera.set_controls(self.ctrl)
+                    self.set_controls()
                     request = self.camera.capture_request()
                     im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
                     request.save_dng(im_name)
                     request.release()
         # Stop camera and wait for next
         self.camera.stop()
+
+    def set_controls(self):
+        """Helper fuction as the float failed to convert to C++ int from ctrl assignment """
+        self.ctrl['AnalogueGain'] = int(self.ctrl['AnalogueGain'])
+        self.ctrl['ExposureTime'] = int(self.ctrl['ExposureTime'])
+        self.camera.set_controls(self.ctrl)
+        # Wait so that camera board can set new values (add a counterr in case it starts bugging out)
+        counter = 0
+        print('Waiting for camera board to recognize control changes')
+        while True:
+            counter +=1
+            metadata = self.camera.capture_metadata()
+            if int(self.ctrl['ExposureTime'])*0.9<int(metadata["ExposureTime"])<int(self.ctrl['ExposureTime'])*1.1 and int(metadata["AnalogueGain"])==int(self.ctrl['AnalogueGain']) or counter >= 10:
+                break
+            else:
+                time.sleep(0.1)
+        return
 
     def determine_exp(self, image, img_exp_time, min_of_max=0.7, max_val = 0.8, img_bounds=None):
         '''Function to determine appropriate exposure from previous image -> based on max val
@@ -616,7 +624,7 @@ class Camera_Handler_picamera:
             image = image.astype(np.float64)[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         else:
             image = image.astype(np.float64)
-        print('Old exposure ', img_exp_time)
+        print('Old exposure ', img_exp_time) # TODO: Look why camera exposure is limited to 15 
         # request returns pillow image --> always uint8
         dtype_max = 255
         max_val *= dtype_max
@@ -630,6 +638,11 @@ class Camera_Handler_picamera:
             new  = int(img_exp_time * (min_of_max+max_val)/(2*np.max(image)))
             print('Computed exp: {}'.format(new))
             # In case exp limits is reached
+            if self.ctrl['AnalogueGain'] > 1 and new < 0.7*self.ctrl['ExposureTime']:
+                # Decreasing Gain and increasing exposure time
+                self.ctrl['AnalogueGain'] -= 1
+                self.ctrl['ExposureTime'] = self.exp_limits[1]
+
             if new>self.exp_limits[1]:
                 print('Setting maximum exposure value {}'.format(self.exp_limits[1]))
                 new = self.exp_limits[1] 
@@ -637,8 +650,68 @@ class Camera_Handler_picamera:
             if img_exp_time >= self.exp_limits[1]*0.95:
                 print('Increasing AnalogueGain as exp limit is reached')
                 self.ctrl['AnalogueGain'] = int(self.ctrl['AnalogueGain']+1)
-                new = self.exp_limits[1]/2
+                new = int(self.exp_limits[1]/2)
             return new
+        
+    def take_bias(self, num_im=50, Gain=1):
+        """Helper function to take bias frames
+        num_im -> number of images to be taken
+        ISO -> ISO at which to take -> list is acceptable and will iterate over
+        """
+        bias_path = os.path.join(os.environ['HOME'], 'Bias')
+        os.mkdir(bias_path)
+        multip_iso = False
+        if type(Gain) in [np.ndarray, list]:
+            if len(Gain)>1:
+                multip_iso = True
+        self.ctrl['ExposureTime'] = self.exp_limits[0]
+        if not multip_iso: Gain = [Gain]
+        for i in Gain:
+            self.ctrl['AnalogueGain'] = i
+            # Generate subdirectories for each ISO if more than one
+            if multip_iso: 
+                path = os.path.join(bias_path, str(i))
+                os.mkdir(path)
+            else: path = bias_path
+            os.chdir(path)
+            self.set_controls()
+            for j in range(num_im):
+                self.capture_image_and_download()
+        return 
+    
+    def take_darks(self, num_im, exp, gain):
+        """
+        Not yet sure how to handle temperature changes from imaging
+        for now just take images and see how it changes as a function of time
+        """
+        dark_path = os.path.join(os.environ['HOME'], 'Darks')
+        os.mkdir(dark_path)
+        multip_iso = False
+        multip_exp = False
+        if type(gain) in [np.ndarray, list]: 
+            if len(gain)>1: multip_iso = True
+        if type(exp) in [np.ndarray, list]: 
+            if len(gain)>1: multip_exp = True
+        for i in exp:
+            self.ctrl['ExposureTime'] = i
+            if multip_exp: 
+                path = os.path.join(dark_path, str(i))
+                os.mkdir(path)
+            else:
+                path = dark_path
+            for j in gain:
+                self.ctrl['AnalogueGain'] = j
+                if multip_iso: 
+                    path = os.path.join(dark_path, str(j))
+                    os.mkdir(path)
+                else:
+                    path = dark_path
+                os.chdir(path)
+                self.set_controls()
+                for k in num_im:
+                    self.capture_image_and_download()
+
+
 
     def finish(self):
         self.camera.close()
