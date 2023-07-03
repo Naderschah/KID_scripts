@@ -684,7 +684,7 @@ class Camera_Handler_picamera:
         if type(Gain) in [np.ndarray, list]:
             if len(Gain)>1:
                 multip_iso = True
-        self.ctrl['ExposureTime'] = self.exp_limits[0]
+        self.ctrl['ExposureTime'] = self.exp_limits[0]+5 # Zero division in source code in changing to shutter
         if not multip_iso: Gain = [Gain]
         for i in Gain:
             self.ctrl['AnalogueGain'] = i
