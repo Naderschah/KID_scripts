@@ -11,7 +11,7 @@ import sys
 import time
 import os
 import telegram
-
+import asyncio
 # Tele bot token and chat_id (to be placed in .bashrc)
 token = os.environ['TOKEN']
 chat_id = os.environ['CHAT_ID']
@@ -28,6 +28,8 @@ async def send_message():
             name = os.environ['HOSTNAME']
         await bot.send_message(text='Camera of Device {} is down'.format(name), chat_id=chat_id)
 
+
+
 for process in psutil.process_iter():
     counter = 0
     while True:
@@ -36,15 +38,16 @@ for process in psutil.process_iter():
             time.sleep(30)
             counter+=1
         else:
-            out = len(subprocess.check_output('gphoto2 --auto-detect').split(b'\n'))
+            out = len(subprocess.check_output(['gphoto2','--auto-detect']).split(b'\n'))
             if out < 4:
                 # Make file that can be read from other machines
-                with open(os.path.join('/tmp', 'CAMERA_GONE')) as f:
+                with open(os.path.join('/tmp', 'CAMERA_GONE'), 'a') as f:
                     f.write(' ')
                 # Log time in case we ever do debugging
-                with open(os.path.join(os.environ['HOME'], 'CAMERA_DEAD.log')):
-                    f.write(datetime.now().strftime('%Y%m%d-%H%M%S'))
-                send_message()
+                with open(os.path.join(os.environ['HOME'], 'CAMERA_DEAD.log'), 'a') as f:
+                    f.write(datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+                asyncio.run(send_message())
+            sys.exit(0)
         # Timer in case it gets stuck somewhere
         if counter == 3:
             sys.exit(0)
