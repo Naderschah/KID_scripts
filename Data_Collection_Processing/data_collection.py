@@ -559,7 +559,7 @@ class Camera_Handler_picamera:
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
         # Set other settings
-        self.set_controls()
+        self.camera.set_controls(self.ctrl)
         return
 
 
