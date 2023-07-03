@@ -16,6 +16,18 @@ import telegram
 token = os.environ['TOKEN']
 chat_id = os.environ['CHAT_ID']
 
+async def send_message():
+    token = os.environ['TOKEN']
+    chat_id = os.environ['CHAT_ID']
+    bot = telegram.Bot(token)
+
+    async with bot:
+        try: # In case hostname is not specific enough this environemnt variable can be set (in bashrc remember they are not persistent)
+            name = os.environ['DESCRIPTOR']
+        except:
+            name = os.environ['HOSTNAME']
+        await bot.send_message(text='Camera of Device {} is down'.format(name), chat_id=chat_id)
+
 for process in psutil.process_iter():
     counter = 0
     while True:
@@ -32,14 +44,7 @@ for process in psutil.process_iter():
                 # Log time in case we ever do debugging
                 with open(os.path.join(os.environ['HOME'], 'CAMERA_DEAD.log')):
                     f.write(datetime.now().strftime('%Y%m%d-%H%M%S'))
-                # Send message over telegram bot
-                bot = telegram.Bot(token)
-                async with bot:
-                    try: # In case hostname is not specific enough this environemnt variable can be set (in bashrc remember they are not persistent)
-                        name = os.environ['DESCRIPTOR']
-                    except:
-                        name = os.environ['HOSTNAME']
-                    await bot.send_message(text='Camera of Device {} is down'.format(name), chat_id=chat_id)
+                send_message()
         # Timer in case it gets stuck somewhere
         if counter == 3:
             sys.exit(0)
