@@ -693,7 +693,7 @@ class Camera_Handler_picamera:
                 os.mkdir(path)
             else: path = bias_path
             os.chdir(path)
-            self.camera.set_controls()
+            self.camera.set_controls(self.ctrl)
             for j in range(num_im):
                 self.capture_image_and_download()
         self.camera.stop()
@@ -727,7 +727,7 @@ class Camera_Handler_picamera:
                 else:
                     path = dark_path
                 os.chdir(path)
-                self.camera.set_controls()
+                self.camera.set_controls(self.ctrl)
                 for k in num_im:
                     self.capture_image_and_download()
         self.camera.stop()
