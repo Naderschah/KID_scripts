@@ -505,7 +505,7 @@ def preprocess_images(img_dir,out_img=None,master_bias=None,master_dark=None,len
     else:
         return master
 
-def master_bias(img_dir,out_dir):
+def master_bias(img_dir,out_dir,name=None):
     """Make master bias"""
     im = None
     count = 0 
@@ -518,9 +518,13 @@ def master_bias(img_dir,out_dir):
             count += 1
         except: pass
     master_bias = im/count
-    np.save(os.path.join(out_dir,'master_bias.npy'), master_bias)
+    if name == None:
+        np.save(os.path.join(out_dir,'master_bias.npy'), master_bias)
+    else:
+        np.save(os.path.join(out_dir,name), master_bias)
 
-def master_dark(img_dir,out_dir, master_bias): #,master_bias='cal_images/master_bias.csv'
+
+def master_dark(img_dir,out_dir, master_bias, name=None): #,master_bias='cal_images/master_bias.csv'
     """Make master dark"""
     im = None
     count = 0
@@ -534,7 +538,11 @@ def master_dark(img_dir,out_dir, master_bias): #,master_bias='cal_images/master_
         except: pass
     if type(master_bias)!=np.ndarray : master_bias=np.load(master_bias)
     master_dark = im/count - master_bias
-    np.save(os.path.join(out_dir,'master_dark.npy'), master_dark)
+    if name == None:
+        np.save(os.path.join(out_dir,'master_dark.npy'), master_dark)
+    else:
+        np.save(os.path.join(out_dir,name), master_dark)
+    
 
 def master_flat(img_dir,out_dir, mbias,mdark):
     """Make master dark"""
