@@ -678,13 +678,14 @@ class Camera_Handler_picamera:
         ISO -> ISO at which to take -> list is acceptable and will iterate over
         """
         self.auto_exp = False
+        self.config['HDR'] = False
         bias_path = os.path.join(os.environ['HOME'], 'Bias')
         os.mkdir(bias_path)
         multip_iso = False
         if type(Gain) in [np.ndarray, list]:
             if len(Gain)>1:
                 multip_iso = True
-        self.ctrl['ExposureTime'] = self.exp_limits[0]+5 # Zero division in source code in changing to shutter
+        self.ctrl['ExposureTime'] = self.exp_limits[0]+20 # Zero division in source code in changing to shutter
         if not multip_iso: Gain = [Gain]
         for i in Gain:
             self.ctrl['AnalogueGain'] = i
@@ -706,6 +707,7 @@ class Camera_Handler_picamera:
         for now just take images and see how it changes as a function of time
         """
         self.auto_exp = False
+        self.config['HDR'] = False
         dark_path = os.path.join(os.environ['HOME'], 'Darks')
         os.mkdir(dark_path)
         multip_iso = False
