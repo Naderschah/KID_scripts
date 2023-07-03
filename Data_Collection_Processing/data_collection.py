@@ -494,8 +494,26 @@ class Camera_Handler_picamera:
             'AeExposureMode':controls.AeExposureModeEnum.Normal,
             }
     auto_exp = False
-    def __init__(self, config_handler) -> None:
-        self.config = config_handler.camera
+    def __init__(self, config_handler=None) -> None:
+        if config_handler is not None:
+            self.config = config_handler.camera
+        else:
+            config_path = os.path.join(CODE_DIR,'config.ini')
+
+            # Check for some config file
+            if os.path.isfile(config_path):
+                pass
+            else:
+                fl = os.listdir(FILE_PARENT)
+                bool_fl = ['config' in i and i.endswith('.ini') for i in fl]
+                if sum(bool_fl)>1 or sum(bool_fl)==0:
+                    print('Fix the config file\nIt needs to be in the same directory as the script and have config in its name and end in .ini')
+                filen = [fl[i] for i in range(len(fl)) if bool_fl[i]]
+                if len(filen)==0:
+                    raise Exception('Config File not Found')
+                config_path = os.path.join(FILE_PARENT,filen[0])
+            
+            self.config = Config_Handler(path=config_path).camera
         # Create camera object with tuning file
         ROOTLOGGER.info('Loading tuning file: {}'.format(self.config['Tuning_File']))
         self.tuning = Picamera2.load_tuning_file(self.config['Tuning_File'])
