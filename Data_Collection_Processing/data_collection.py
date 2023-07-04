@@ -719,8 +719,8 @@ class Camera_Handler_picamera:
         for i in exp:
             self.ctrl['ExposureTime'] = i
             if multip_exp: 
-            path = os.path.join(dark_path, str(i))
-            os.mkdir(path)
+                path = os.path.join(dark_path, str(i))
+                os.mkdir(path)
             else: path = dark_path
             for j in gain:
                 self.ctrl['AnalogueGain'] = j
