@@ -560,7 +560,7 @@ class Camera_Handler_picamera:
         # Configure sensor mode etc
         self.camera.configure(self.capture_config)
         # Set other settings
-        self.camera.set_controls(self.ctrl)
+        self.set_controls(wait=False)
         return
 
 
@@ -613,7 +613,7 @@ class Camera_Handler_picamera:
         request.release()
         self.camera.stop()
 
-    def set_controls(self):
+    def set_controls(self,wait=True):
         """Helper fuction as the float failed to convert to C++ int from ctrl assignment """
         self.ctrl['AnalogueGain'] = int(self.ctrl['AnalogueGain'])
         self.ctrl['ExposureTime'] = int(self.ctrl['ExposureTime'])
@@ -621,7 +621,7 @@ class Camera_Handler_picamera:
         # Wait so that camera board can set new values (add a counterr in case it starts bugging out)
         counter = 0
         print('Waiting for camera board to recognize control changes')
-        while True:
+        while wait:
             counter +=1
             metadata = self.camera.capture_metadata()
             if int(self.ctrl['ExposureTime'])*0.9<int(metadata["ExposureTime"])<int(self.ctrl['ExposureTime'])*1.1 and int(metadata["AnalogueGain"])==int(self.ctrl['AnalogueGain']) or counter >= 10:
@@ -695,7 +695,7 @@ class Camera_Handler_picamera:
                 path = os.path.join(bias_path, str(i))
                 os.mkdir(path)
             else: path = bias_path
-            self.camera.set_controls(self.ctrl)
+            self.set_controls(wait=False)
             for j in range(num_im):
                 self.capture_image_and_download()
         self.camera.stop()
@@ -729,7 +729,7 @@ class Camera_Handler_picamera:
                 os.mkdir(path)
             else: path = dark_path
             os.chdir(path)
-            self.camera.set_controls(self.ctrl)
+            self.set_controls(wait=False)
             for k in range(num_im):
                 self.capture_image_and_download()   
             time.sleep(30)
@@ -751,7 +751,7 @@ class Camera_Handler_picamera:
             self.ctrl['ExposureTime'] = i
             for j in gain_range:
                 self.ctrl['AnalogueGain'] = j
-                self.camera.set_controls(self.ctrl)
+                self.set_controls(wait=False)
                 for k in range(num_im):
                     self.capture_image_and_download(name='{}_{}.dng'.format(i,j))
         return
