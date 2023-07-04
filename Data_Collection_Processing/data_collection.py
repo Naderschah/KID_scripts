@@ -730,7 +730,7 @@ class Camera_Handler_picamera:
             else: path = dark_path
             os.chdir(path)
             self.camera.set_controls(self.ctrl)
-            for k in num_im:
+            for k in range(num_im):
                 self.capture_image_and_download()   
             time.sleep(30)
         return
@@ -752,7 +752,7 @@ class Camera_Handler_picamera:
             for j in gain_range:
                 self.ctrl['AnalogueGain'] = j
                 self.camera.set_controls(self.ctrl)
-                for k in num_im:
+                for k in range(num_im):
                     self.capture_image_and_download(name='{}_{}.dng'.format(i,j))
         return
 
