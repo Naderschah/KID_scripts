@@ -614,9 +614,15 @@ class Camera_Handler_picamera:
         self.camera.stop()
 
     def set_controls(self,wait=True):
-        """Helper fuction as the float failed to convert to C++ int from ctrl assignment """
+        """
+        Helper fuction as exp and gain must be int and i forget to often
+        Also fixes lower limit of exposure (absolute minimum cant be set)
+        """
         self.ctrl['AnalogueGain'] = int(self.ctrl['AnalogueGain'])
         self.ctrl['ExposureTime'] = int(self.ctrl['ExposureTime'])
+        if self.ctrl['ExposureTime'] == self.exp_limits[0]:
+            # Minimum can not be set
+            self.ctrl['ExposureTime'] = int(self.ctrl['ExposureTime']+5)
         self.camera.set_controls(self.ctrl)
         # Wait so that camera board can set new values (add a counterr in case it starts bugging out)
         counter = 0
@@ -724,15 +730,15 @@ class Camera_Handler_picamera:
             else: path = dark_path
             for j in gain:
                 self.ctrl['AnalogueGain'] = j
-            if multip_iso: 
-                path = os.path.join(path, str(j))
-                os.mkdir(path)
-            else: path = dark_path
-            os.chdir(path)
-            self.set_controls(wait=False)
-            for k in range(num_im):
-                self.capture_image_and_download()   
-            time.sleep(30)
+                if multip_iso: 
+                    path = os.path.join(path, str(j))
+                    os.mkdir(path)
+                else: path = dark_path
+                os.chdir(path)
+                self.set_controls(wait=False)
+                for k in range(num_im):
+                    self.capture_image_and_download()   
+                time.sleep(30)
         return
 
     def take_linearity(self, num_im_exp_sweep=10,num_im_gain_sweep=20,num_im=2):
