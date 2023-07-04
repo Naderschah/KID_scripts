@@ -719,22 +719,20 @@ class Camera_Handler_picamera:
         for i in exp:
             self.ctrl['ExposureTime'] = i
             if multip_exp: 
-                path = os.path.join(dark_path, str(i))
-                os.mkdir(path)
-            else:
-                path = dark_path
+            path = os.path.join(dark_path, str(i))
+            os.mkdir(path)
+            else: path = dark_path
             for j in gain:
                 self.ctrl['AnalogueGain'] = j
-                if multip_iso: 
-                    path = os.path.join(path, str(j))
-                    os.mkdir(path)
-                else:
-                    path = dark_path
-                os.chdir(path)
-                self.camera.set_controls(self.ctrl)
-                for k in num_im:
-                    self.capture_image_and_download()
-                time.sleep(30)
+            if multip_iso: 
+                path = os.path.join(path, str(j))
+                os.mkdir(path)
+            else: path = dark_path
+            os.chdir(path)
+            self.camera.set_controls(self.ctrl)
+            for k in num_im:
+                self.capture_image_and_download()   
+            time.sleep(30)
         return
 
     def take_linearity(self, num_im_exp_sweep=10,num_im_gain_sweep=20,num_im=2):
