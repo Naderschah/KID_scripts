@@ -1,35 +1,22 @@
 #!/usr/bin/python
 
 """
-All methods I found for automatically launching applications on a raspberry are flakey or jsut dont work for me.
-So this is supposed to be a script run by cron to check if a script is running and then start it 
+For KID groningen no longer required, our devices turn off every day through a time switch on the powerbrick, set to somewhere around 3pm 
 
+Copy this script to ~
+
+To automatically send a message to telegram when camera dies
+file:
+.cam_dead_rc
+needs to be created, cron source bashrc doesnt work as its set to return in line 5-10 somewhere, with the environment variables:
+TOKEN :: Token of chat bot
+CHAT_ID :: Chat ID of chat bot activity (url extension in telegram web without the #-)
+HOSTNAME :: (or DESCRIPTOR) Name to show up in telegram
+HOME :: the same as the HOME environment variable pointing to ~ (cd ~; pwd : output will be home)
 In cron:
-# Edit this file to introduce tasks to be run by cron.
-# 
-# Each task to run has to be defined through a single line
-# indicating with different fields when the task will be run
-# and what command to run for the task
-# 
-# To define the time you can provide concrete values for
-# minute (m), hour (h), day of month (dom), month (mon),
-# and day of week (dow) or use '*' in these fields (for 'any').
-# 
-# Notice that tasks will be started based on the cron's system
-# daemon's notion of time and timezones.
-# 
-# Output of the crontab jobs (including errors) is sent through
-# email to the user the crontab file belongs to (unless redirected).
-# 
-# For example, you can run a backup of all your user accounts
-# at 5 a.m every week with:
-# 0 5 * * 1 tar -zcf /var/backups/home.tgz /home/
-# 
-# For more information see the manual pages of crontab(5) and cron(8)
-# 
+
 # m h  dom mon dow   command
-0 * * * * source $HOME/.bashrc; /usr/bin/python3 /home/EOSRP/camera_dead.py
-30 * * * * source $HOME/.bashrc; /usr/bin/python3 /home/EOSRP/auto_start_script.py
+0 * * * * source $HOME/.cam_dead_rc; /usr/bin/python3 /home/EOSRP/camera_dead.py
 
 """
 import subprocess
