@@ -618,7 +618,12 @@ class Camera_Handler_picamera:
         self.camera.stop()
         if check_max_tresh is not None:
             img=request.make_array('main')
-            if np.sum(img==255)/img.size >= check_max_tresh
+            if np.sum(img==255)/img.size >= check_max_tresh:
+                return True
+            else:
+                return None
+        else:
+            return None
 
 
     def set_controls(self,wait=True):
