@@ -598,7 +598,10 @@ class Camera_Handler_picamera:
         else:
             request = self.camera.capture_request()
         # Save last request made, for auto_exp it will have the correct exposure
-        im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+        if name is None:
+            im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+        else:
+            im_name = name
         if check_max_tresh is not None:
             img=request.make_array('main')
         request.save_dng(im_name)
@@ -610,7 +613,8 @@ class Camera_Handler_picamera:
                     self.set_controls()
                     request = self.camera.capture_request()
                     im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
-                    if name != None : im_name = name
+                    if name != None: 
+                        im_name = name.split('.')[0]+'_{}.dng'.format(i)
                     request.save_dng(im_name)
                     request.release()
         # Stop camera and wait for next
