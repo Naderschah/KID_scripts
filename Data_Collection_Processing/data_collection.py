@@ -756,6 +756,10 @@ class Camera_Handler_picamera:
         """
         self.ctrl['ExposureTime'] = self.exp_limits[0]+5
         self.ctrl['AnalogueGain'] = self.gain_limts[0]
+
+        self.auto_exp = False
+        self.config['HDR'] = 'False'
+
         exp_range = np.linspace(self.exp_limits[0], self.exp_limits[1], num_im_exp_sweep)
         gain_range = np.linspace(self.gain_limts[0], self.gain_limts[1], num_im_gain_sweep)
         linearity_path = os.path.join(os.environ['HOME'], 'Linearity')
