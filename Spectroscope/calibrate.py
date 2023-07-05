@@ -536,7 +536,7 @@ def master_dark(img_dir,out_dir, master_bias, name=None): #,master_bias='cal_ima
                 im += spectral_images_to_data(os.path.join(img_dir,i),extra=False).astype(np.float64)
             count += 1
         except: pass
-    if type(master_bias)!=np.ndarray : master_bias=np.load(master_bias)
+    if type(master_bias) not in [np.ndarray, int, np.int8,np.int16,np.int32,np.int64]: master_bias=np.load(master_bias)
     master_dark = im/count - master_bias
     if name == None:
         np.save(os.path.join(out_dir,'master_dark.npy'), master_dark)

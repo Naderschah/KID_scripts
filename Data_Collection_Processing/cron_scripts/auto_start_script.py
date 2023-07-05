@@ -3,6 +3,10 @@
 HOME = '/home/EOSRP/'
 
 """
+Installs required:
+sudo apt install python3-psutil
+above doesnt seem to ship with python3 on arm
+
 All methods I found for automatically launching applications on a raspberry are flakey or jsut dont work for me.
 So this is supposed to be a script run by cron to check if a script is running and then start it if not
 

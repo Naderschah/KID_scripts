@@ -564,10 +564,12 @@ class Camera_Handler_picamera:
         return
 
 
-    def capture_image_and_download(self,name=None):
+    def capture_image_and_download(self,name=None,check_max_tresh=None):
         """
         Starting and stopping camera occurs within this block to save on resouces
         As images wont be taken frequently
+
+        check_max_tresh -> threshold for percentage of pixels at max val -> if cond satisfied returns true
         """
         self.camera.start()
 
@@ -597,6 +599,8 @@ class Camera_Handler_picamera:
             request = self.camera.capture_request()
         # Save last request made, for auto_exp it will have the correct exposure
         im_name = "{}.dng".format(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+        if check_max_tresh is not None:
+            img=request.make_array('main')
         request.save_dng(im_name)
         if hasattr(self.config, 'hdr'):
             if self.config['hdr']=='True':
@@ -612,6 +616,10 @@ class Camera_Handler_picamera:
         # Stop camera and wait for next
         request.release()
         self.camera.stop()
+        if check_max_tresh is not None:
+            img=request.make_array('main')
+            if np.sum(img==255)/img.size >= check_max_tresh
+
 
     def set_controls(self,wait=True):
         """
@@ -759,7 +767,10 @@ class Camera_Handler_picamera:
                 self.ctrl['AnalogueGain'] = j
                 self.set_controls(wait=False)
                 for k in range(num_im):
-                    self.capture_image_and_download(name='{}_{}.dng'.format(i,j))
+                    res = self.capture_image_and_download(name='{}_{}.dng'.format(i,j),check_max_tresh=0.3)
+                    if res:
+                        # If threshhold max value reached break inner loop
+                        break
         return
 
 
