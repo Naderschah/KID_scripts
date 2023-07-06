@@ -541,12 +541,14 @@ class Camera_Handler_picamera:
             self.tuning['algorithms'][11]['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
 
         self.camera = Picamera2(tuning=self.tuning)
-        self.exp_limits =self.camera.sensor_modes[-1]['exposure_limits'] # (min,max, current)
+        # The below property might change through imaging so keep true
+        self.sensor_modes = self.camera.sensor_modes
+        self.exp_limits =self.sensor_modes[-1]['exposure_limits'] # (min,max, current)
         self.gain_limts = self.camera.camera_controls['AnalogueGain']
         # Get img output bit depth
         self.bit_depth = self.camera.sensor_modes[-1]['bit_depth']
-        # Create capture config
-        self.capture_config = self.camera.create_still_configuration(raw={})
+        # Create capture config - > Note the raw stream config rather than just passing the appropriate sensor mode, theere is some parsing error at the time of writing at some point one can pass the entire dict instead
+        self.capture_config = self.camera.create_still_configuration(raw={'size':self.sensor_modes[-1]['size'], 'format':self.sensor_modes[-1]['format']})
         # Set ctrl settings
         self.set_up_camera()
 
@@ -580,7 +582,7 @@ class Camera_Handler_picamera:
             while True:
                 request = self.camera.capture_request()
                 # Request make array does not return bit depth image but pillow so uint8
-                img=request.make_array('main')
+                img=request.make_array('raw')
                 exp = request.get_metadata()["ExposureTime"]
                 new_exp = self.determine_exp(image=img, 
                                         img_exp_time=exp)
@@ -601,7 +603,7 @@ class Camera_Handler_picamera:
         else:
             im_name = name
         if check_max_tresh is not None:
-            img=request.make_array('main')
+            img=request.make_array('raw')
         
         # Append dict to json metadata file, note that this method utilizes two opens to avoid loading it and still make json work
         # Also if it doesnt exist we dump a dictionary
@@ -677,16 +679,21 @@ class Camera_Handler_picamera:
 
         returns True if condition satisfied so that min_of_max < max(img) < max_val
 
-        TODO: Need to find out what dtype gets returned and if this differs (should be uint10)
         '''
+        # So the image is a np.uint8 array of double width, 
+        # by callin np.uint16 it combines each two items into 1 element
+        # This needs to be done as there are no non power two uint datatypes so we convert to uint16 to combine them
+        # Our max datatype corresponds to bit depth not to the datatype
+        # Here is the thread where i learned https://github.com/raspberrypi/picamera2/issues/736
+        img = img.view(np.uint16)
         if 'IMG_Bounds' in self.config:
             bounds = [int(i) for i in self.config['IMG_Bounds'].split(',')]
             image = image.astype(np.float64)[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         else:
+            # Now we convert to float so taht we can do math
             image = image.astype(np.float64)
-        print('Old exposure ', img_exp_time) # TODO: Look why camera exposure is limited to 15 
-        # request returns pillow image --> always uint8
-        dtype_max = 255
+        print('Old exposure ', img_exp_time) 
+        dtype_max = 2**self.bit_depth - 1
         max_val *= dtype_max
         min_of_max *= dtype_max
         print('Want {} < {} < {}'.format(min_of_max, np.max(image), max_val))
