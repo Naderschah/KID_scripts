@@ -12,6 +12,7 @@ import numpy as np
 from PIL import Image
 import tarfile
 import subprocess
+import json
 
 try:
     import asi
@@ -576,24 +577,21 @@ class Camera_Handler_picamera:
         time.sleep(3)
         
         if self.auto_exp:
-            with open('exposure_linearity.csv', 'a') as f:
-                f.write('New\nExposure, Min, Mean, Max\n')
-                while True:
-                    request = self.camera.capture_request()
-                    # Request make array does not return bit depth image but pillow so uint8
-                    img=request.make_array('main')
-                    exp = request.get_metadata()["ExposureTime"]
-                    f.write('{},{},{},{},{}\n'.format(exp,self.ctrl['AnalogueGain'], np.min(img), np.mean(img), np.max(img)))
-                    new_exp = self.determine_exp(image=img, 
-                                            img_exp_time=exp)
-                    if new_exp == True:
-                        # Break loop if exposure good
-                        break
-                    request.release()
+            while True:
+                request = self.camera.capture_request()
+                # Request make array does not return bit depth image but pillow so uint8
+                img=request.make_array('main')
+                exp = request.get_metadata()["ExposureTime"]
+                new_exp = self.determine_exp(image=img, 
+                                        img_exp_time=exp)
+                if new_exp == True:
+                    # Break loop if exposure good
+                    break
+                request.release()
 
-                    # Otherwise change and continue
-                    self.ctrl['ExposureTime'] = new_exp
-                    self.set_controls()
+                # Otherwise change and continue
+                self.ctrl['ExposureTime'] = new_exp
+                self.set_controls()
                     
         else:
             request = self.camera.capture_request()
@@ -604,7 +602,28 @@ class Camera_Handler_picamera:
             im_name = name
         if check_max_tresh is not None:
             img=request.make_array('main')
+        
+        # Append dict to json metadata file, note that this method utilizes two opens to avoid loading it and still make json work
+        # Also if it doesnt exist we dump a dictionary
+
+        if os.path.isfile('metadata.json'):
+            with open('metadata.json', 'w') as convert_file:
+                convert_file.write(json.dumps([]))        
+        
+        with open('metadata.json', 'rb') as convert_file:
+            # Seek 1 offset from the end of the file
+            convert_file.seek(-1, 2)
+            # Converts to nr of bytes until current file location, should be most efficient method as it only changes its memory end adress
+            convert_file.truncate()
+
+        with open('metadata.json', 'a') as convert_file:
+            dicti = request.get_metadata()
+            dicti['Image_file_name'] = os.path.join(im_name)
+            convert_file.write(json.dumps())
+            convert_file.write(']')
+
         request.save_dng(im_name)
+        request.release()
         if hasattr(self.config, 'hdr'):
             if self.config['hdr']=='True':
                 exp = request.get_metadata()["ExposureTime"]
@@ -618,7 +637,6 @@ class Camera_Handler_picamera:
                     request.save_dng(im_name)
                     request.release()
         # Stop camera and wait for next
-        request.release()
         self.camera.stop()
         if check_max_tresh is not None:
             if np.sum(img==255)/img.size >= check_max_tresh:
