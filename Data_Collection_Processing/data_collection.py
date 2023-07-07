@@ -99,6 +99,11 @@ def main():
         ROOTLOGGER.info("Using picamera backend")
         camera = Camera_Handler_picamera(config)
 
+    if hasattr('Motor', config):
+        motor = MotorController_ULN2003(gpio = [int(config.Motor['ms1']),int(config.Motor['ms2']),int(config.Motor['ms3']),int(config.Motor['ms4'])])
+        # Variable to check later if this is required
+        motor_azi = True # TODO Track total angle in camera to add to config 
+
     # Check time to start
     if not DEBUG:
         sun = suntime.Sun(float(config.location['longitude']), float(config.location['latitude']))
@@ -883,7 +888,78 @@ class Config_Handler:
         config = cfg.ConfigParser()
         config.read(path)
         return config
+
+
+
+
+class MotorController_ULN2003:
+    """For moving camera set ups controls 1 motor
+    default set up for 28BYJ-48 motor (come really cheap as set)
+    """
+    step_sequence = [[1,0,0,1],
+                 [1,0,0,0],
+                 [1,1,0,0],
+                 [0,1,0,0],
+                 [0,1,1,0],
+                 [0,0,1,0],
+                 [0,0,1,1],
+                 [0,0,0,1]]
+    # Variable below keeps track of current index in list
+    stp_counter = 0
+    deg_per_step = 5.625*1/64 
+    # Variable to track total angle traveled during operation
+    total_angle = 0 
+    # Direction 
+    dir = True
+    def __init__(self, gpio, delay = 0.01) -> None:
+        """
+        gpio --> list of ms1 to ms4 in order in BCM listing (name of pins not pin number)
+        """
+        import RPi.GPIO as gpio
+        self.ms = gpio
+        self.delay = delay
+        gpio.setmode( gpio.BCM )
+        for i in gpio
+            gpio.setup(i,gpio.OUT)
+            gpio.output(i,gpio.LOW)
+
+        pass
+
+    def change_dir(self):
+        self.dir = not self.dir
+        return
+
+    def step_angle(self,angle):
+        """
+        Steps just under the angle specified, 
+        returns actual angle stepped
+        """
+        steps = angle//self.deg_per_step
+        self.step(step_count=steps)
+        if self.dir:
+            self.total_angle +=steps*self.deg_per_step
+        else:
+            self.total_angle -= steps*self.deg_per_step
+        return steps*self.deg_per_step
+
     
+    def step(self,step_count):
+        """Take step count number steps"""
+        i = 0
+        for i in range(step_count):
+            for pin in range(0, len(self.ms)):
+                gpio.output( self.ms[pin], self.ms[self.stp_counter][pin] )
+            if self.dir==True:
+                self.stp_counter = (self.stp_counter - 1) % 8
+            elif self.dir==False:
+                self.stp_counter = (self.stp_counter + 1) % 8
+            time.sleep( self.delay )
+        if self.dir:
+            self.total_angle +=step_count*self.deg_per_step
+        else:
+            self.total_angle -= step_count*self.deg_per_step
+        return 
+
 
 if __name__=='__main__':
     main()

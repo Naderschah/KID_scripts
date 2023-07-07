@@ -16,7 +16,7 @@ HOME :: the same as the HOME environment variable pointing to ~ (cd ~; pwd : out
 In cron:
 
 # m h  dom mon dow   command
-0 * * * * source $HOME/.cam_dead_rc; /usr/bin/python3 /home/EOSRP/camera_dead.py
+0 * * * * bash -c "source $HOME/.cam_dead_rc; /usr/bin/python3 /home/EOSRP/camera_dead.py"
 
 """
 import subprocess
