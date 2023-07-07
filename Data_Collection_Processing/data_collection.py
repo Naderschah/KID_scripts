@@ -99,10 +99,11 @@ def main():
         ROOTLOGGER.info("Using picamera backend")
         camera = Camera_Handler_picamera(config)
 
-    if hasattr('Motor', config):
-        motor = MotorController_ULN2003(gpio = [int(config.Motor['ms1']),int(config.Motor['ms2']),int(config.Motor['ms3']),int(config.Motor['ms4'])])
+    motor_azi_bool = False
+    if hasattr('MotorAzi', config):
+        motor_azi = MotorController_ULN2003(gpio = [int(config.MotorAzi['ms1']),int(config.MotorAzi['ms2']),int(config.MotorAzi['ms3']),int(config.MotorAzi['ms4'])])
         # Variable to check later if this is required
-        motor_azi = True # TODO Track total angle in camera to add to config 
+        motor_azi_bool = True # TODO Track total angle in camera to add to config 
 
     # Check time to start
     if not DEBUG:
@@ -121,9 +122,37 @@ def main():
         time.sleep((start-datetime.datetime.now(datetime.timezone.utc)).total_seconds())
     ROOTLOGGER.info('Starting Imaging')
     counter = 1
+    # Generatre coordinate array
+    if motor_azi_bool:
+        azi_coords = []
+        i =0
+        while i <= 360:
+            azi_coords.append(i)
+            i += config.MotorAzi['step_size']
+        if azi_coords[-1] != 360:
+            azi_coords.append(360)
+            # Booleans for later list iteration
+        azi_coord_index = 0
+        azi_up = True
+
     while datetime.datetime.now(datetime.timezone.utc)<end:
         print('Taking image ', counter)
-        camera.capture_image_and_download()
+        ext_meta = {}
+        if motor_azi_bool:
+            motor_azi.move_to_angle(azi_coords[azi_coord_index])
+            #Check if iteration direction needs changing
+            if azi_coords[azi_coord_index] == azi_coords[-1]:
+                azi_up = False
+            elif azi_coords[azi_coord_index] == azi_coords[0]:
+                azi_up = True
+            # Set next index
+            if azi_up:
+                azi_coord_index += 1
+            else:
+                azi_coord_index -= 1
+            ext_meta['azi_angle'] = motor_azi.total_angle
+
+        camera.capture_image_and_download(pass_meta=ext_meta)
         time.sleep(int(config.camera['Image_Frequency'])*60)
         counter += 1
     ROOTLOGGER.info('Total number of images ', counter)
@@ -292,7 +321,7 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
         return None
     
 
-    def capture_image_and_download(self, timeout = 100):
+    def capture_image_and_download(self, timeout = 100, pass_meta=None):
         if self.auto_exp: self.auto_exp_compute_settings()
         # What is bIsDark seems to be a boolean -- Dark images? -- seperate setting for this in sdk so dont know
         rtn = asi.ASIStartExposure(self.info.CameraID, bIsDark=False)
@@ -380,7 +409,7 @@ class Camera_Handler_gphoto: #FIXME: Auto exposure check if Jake or Reynier know
 
         return None
     
-    def capture_image_and_download(self):
+    def capture_image_and_download(self, pass_meta=None):
         """Captures an image with current settings and download"""
         ROOTLOGGER.info('Capturing and downloading Image')
         result = subprocess.run(['gphoto2 --capture-image-and-download --filename "%Y%m%d%H%M%S.cr2"'], capture_output=True,check=True,shell=True)
@@ -572,12 +601,14 @@ class Camera_Handler_picamera:
         return
 
 
-    def capture_image_and_download(self,name=None,check_max_tresh=None):
+    def capture_image_and_download(self,name=None,check_max_tresh=None, pass_meta=None):
         """
         Starting and stopping camera occurs within this block to save on resouces
         As images wont be taken frequently
 
         check_max_tresh -> threshold for percentage of pixels at max val -> if cond satisfied returns true
+
+        pass_meta --> extra meta to be passed to function
         """
         self.camera.start()
 
@@ -626,6 +657,9 @@ class Camera_Handler_picamera:
         with open('metadata.json', 'a') as convert_file:
             dicti = request.get_metadata()
             dicti['Image_file_name'] = os.path.join(im_name)
+            if pass_meta is not None:
+                for i in pass_meta:
+                    dicti[i] = pass_meta[i]
             convert_file.write(json.dumps())
             convert_file.write(']')
 
@@ -911,19 +945,42 @@ class MotorController_ULN2003:
     total_angle = 0 
     # Direction 
     dir = True
-    def __init__(self, gpio, delay = 0.01) -> None:
+    def __init__(self, gpio, delay = 0.01, name='azi') -> None:
         """
+        NEVER: Step over or under 360 degrees relative to total_move --> it will most likely mess up the cabling
         gpio --> list of ms1 to ms4 in order in BCM listing (name of pins not pin number)
+        delay --> delay between each step
+        name --> name to be used to save current rotation state to assure it doesnt break itself
         """
         import RPi.GPIO as gpio
         self.ms = gpio
         self.delay = delay
+        self.name = name
         gpio.setmode( gpio.BCM )
         for i in gpio
             gpio.setup(i,gpio.OUT)
             gpio.output(i,gpio.LOW)
+        # Read past state
+        if os.path.isfile():
+            with open(os.path.join('/home', self.name+'.curr_rot'),'w') as f:
+                cont = f.read()
+                self.total_angle = float(cont)
 
         pass
+
+    def move_to_angle(self,angle):
+        """Helper function move to"""
+        move = angle-self.total_angle
+        # Negative move corresponds to dir = False
+        if move < 0 and self.dir: 
+            self.change_dir()
+        elif move> 0 and not self.dir:
+            self.change_dir()
+        elif move == 0:
+            return self.total_angle
+        move = abs(move)
+        self.step_angle(move)
+        return self.total_angle
 
     def change_dir(self):
         self.dir = not self.dir
@@ -958,6 +1015,8 @@ class MotorController_ULN2003:
             self.total_angle +=step_count*self.deg_per_step
         else:
             self.total_angle -= step_count*self.deg_per_step
+        with open(os.path.join('/home', self.name+'.curr_rot'),'w') as f:
+            f.write(self.total_angle)
         return 
 
 
