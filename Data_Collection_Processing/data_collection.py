@@ -36,7 +36,7 @@ The config file is expected to be called config.ini in the same directory as thi
 As long as config is in it and it ends in ini it is recognized
 """
 
-DEBUG = False
+DEBUG = True
 
 
 
@@ -570,9 +570,13 @@ class Camera_Handler_picamera:
         self.tuning['algorithms'][8]['rpi.alsc']["n_iter"] = 1
         # Disable gamma curve
         self.tuning['algorithms'][9]['rpi.contrast']["ce_enable"] = 0
+        # Tuning file sometimes has sharpen and ccm swapped 
+        if 'rpi.ccm' in self.tuning['algorithms'][10]: index = 10 #TODO : Make all independent of index
+        elif 'rpi.ccm' in self.tuning['algorithms'][11]: index = 11
+
         # Disable color correction matrix for all color temperatures
-        for i in range(len(self.tuning['algorithms'][11]['rpi.ccm']['ccms'])):
-            self.tuning['algorithms'][11]['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
+        for i in range(len(self.tuning['algorithms'][index]['rpi.ccm']['ccms'])):
+            self.tuning['algorithms'][index]['rpi.ccm']['ccms'][i]['ccm'] = [1,0,0,0,1,0,0,0,1]
 
         self.camera = Picamera2(tuning=self.tuning)
         # The below property might change through imaging so keep true
@@ -589,7 +593,7 @@ class Camera_Handler_picamera:
     def set_up_camera(self):
         """Set settings"""
         if self.config['Exposure'] != 'Auto':
-            self.ctrl['ExposureTime'] = int(self.config['Exposure']*1e6)
+            self.ctrl['ExposureTime'] = int(float(self.config['Exposure'])*1e6)
         else: 
             # Auto exposure wouldnt work proper so manually computing later
             self.auto_exp = True
@@ -953,6 +957,7 @@ class MotorController_ULN2003:
         name --> name to be used to save current rotation state to assure it doesnt break itself
         """
         import RPi.GPIO as gpio
+        gpio = [int(i) for i in gpio]
         self.ms = gpio
         self.delay = delay
         self.name = name
