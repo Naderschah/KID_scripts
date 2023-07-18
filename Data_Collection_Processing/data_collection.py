@@ -95,12 +95,14 @@ def main():
     elif config.camera['Brand'] == "ZWO": 
         ROOTLOGGER.info("Using zwo asi sdk backend (not sure what asi stands for)")
         camera = Camera_Hanlder_ZWO(config)
-    elif config.camera['Brand'] == "PiCamera": 
+    elif config.camera['Brand'] in ["PiCamera", 'Arducam', 'Waveshare']: 
         ROOTLOGGER.info("Using picamera backend")
         camera = Camera_Handler_picamera(config)
 
     motor_azi_bool = False
-    if hasattr('MotorAzi', config):
+    if hasattr(config, 'MotorAzi'):
+        import RPi.GPIO as GPIO
+        print('Initiating Motor')
         motor_azi = MotorController_ULN2003(gpio = [int(config.MotorAzi['ms1']),int(config.MotorAzi['ms2']),int(config.MotorAzi['ms3']),int(config.MotorAzi['ms4'])])
         # Variable to check later if this is required
         motor_azi_bool = True # TODO Track total angle in camera to add to config 
@@ -128,7 +130,7 @@ def main():
         i =0
         while i <= 360:
             azi_coords.append(i)
-            i += config.MotorAzi['step_size']
+            i += int(config.MotorAzi['step_size'])
         if azi_coords[-1] != 360:
             azi_coords.append(360)
             # Booleans for later list iteration
@@ -151,6 +153,7 @@ def main():
             else:
                 azi_coord_index -= 1
             ext_meta['azi_angle'] = motor_azi.total_angle
+            print('Motor at {} deg rotation relative to start point'.format(ext_meta['azi_angle']))
 
         camera.capture_image_and_download(pass_meta=ext_meta)
         time.sleep(int(config.camera['Image_Frequency'])*60)
@@ -648,11 +651,11 @@ class Camera_Handler_picamera:
         # Append dict to json metadata file, note that this method utilizes two opens to avoid loading it and still make json work
         # Also if it doesnt exist we dump a dictionary
 
-        if os.path.isfile('metadata.json'):
+        if not os.path.isfile('metadata.json'):
             with open('metadata.json', 'w') as convert_file:
                 convert_file.write(json.dumps([]))        
         
-        with open('metadata.json', 'rb') as convert_file:
+        with open('metadata.json', 'ab') as convert_file:
             # Seek 1 offset from the end of the file
             convert_file.seek(-1, 2)
             # Converts to nr of bytes until current file location, should be most efficient method as it only changes its memory end adress
@@ -664,7 +667,7 @@ class Camera_Handler_picamera:
             if pass_meta is not None:
                 for i in pass_meta:
                     dicti[i] = pass_meta[i]
-            convert_file.write(json.dumps())
+            convert_file.write(json.dumps(dicti))
             convert_file.write(']')
 
         request.save_dng(im_name)
@@ -914,7 +917,11 @@ class Config_Handler:
                 raise Exception("Config file incomplete entry: {} missing".format(i))
             else:
                 pass
+            
+        if 'MotorAzi' in config:
+            self.MotorAzi = config["MotorAzi"]
 
+        
         # Extract file paths
         self.paths = config["Paths"]
 
@@ -956,20 +963,23 @@ class MotorController_ULN2003:
         delay --> delay between each step
         name --> name to be used to save current rotation state to assure it doesnt break itself
         """
-        import RPi.GPIO as gpio
         gpio = [int(i) for i in gpio]
         self.ms = gpio
         self.delay = delay
         self.name = name
-        gpio.setmode( gpio.BCM )
-        for i in gpio
-            gpio.setup(i,gpio.OUT)
-            gpio.output(i,gpio.LOW)
+        GPIO.setmode( GPIO.BCM )
+        for i in gpio:
+            GPIO.setup(i,GPIO.OUT)
+            GPIO.output(i,GPIO.LOW)
         # Read past state
-        if os.path.isfile():
-            with open(os.path.join('/home', self.name+'.curr_rot'),'w') as f:
+        if os.path.isfile(os.path.join('/home', self.name+'.curr_rot')):
+            with open(os.path.join('/home', self.name+'.curr_rot'),'r') as f:
                 cont = f.read()
-                self.total_angle = float(cont)
+                # In case the file was manually created
+                if len(cont) != 0:
+                    self.total_angle = float(cont)
+                else:
+                    pass
 
         pass
 
@@ -997,7 +1007,7 @@ class MotorController_ULN2003:
         returns actual angle stepped
         """
         steps = angle//self.deg_per_step
-        self.step(step_count=steps)
+        self.step(step_count=int(steps))
         if self.dir:
             self.total_angle +=steps*self.deg_per_step
         else:
@@ -1010,7 +1020,7 @@ class MotorController_ULN2003:
         i = 0
         for i in range(step_count):
             for pin in range(0, len(self.ms)):
-                gpio.output( self.ms[pin], self.ms[self.stp_counter][pin] )
+                GPIO.output( self.ms[pin], self.step_sequence[self.stp_counter][pin] )
             if self.dir==True:
                 self.stp_counter = (self.stp_counter - 1) % 8
             elif self.dir==False:
@@ -1021,7 +1031,7 @@ class MotorController_ULN2003:
         else:
             self.total_angle -= step_count*self.deg_per_step
         with open(os.path.join('/home', self.name+'.curr_rot'),'w') as f:
-            f.write(self.total_angle)
+            f.write(str(self.total_angle))
         return 
 
 
