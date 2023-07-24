@@ -129,11 +129,11 @@ def main():
     if motor_azi_bool:
         azi_coords = []
         i =0
-        while i <= 360:
+        while i <= 360-int(config.MotorAzi['step_size']):
             azi_coords.append(i)
             i += int(config.MotorAzi['step_size'])
-        if azi_coords[-1] != 360:
-            azi_coords.append(360)
+        if azi_coords[-1] != 360-int(config.MotorAzi['step_size']):
+            azi_coords.append(360-int(config.MotorAzi['step_size']))
             # Booleans for later list iteration
         azi_coord_index = 0
         azi_up = True
