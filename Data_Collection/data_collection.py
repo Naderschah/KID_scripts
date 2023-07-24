@@ -1002,6 +1002,8 @@ class MotorController_ULN2003:
 
     def move_to_angle(self,angle):
         """Helper function move to"""
+        print('Move todo, angle, total_angle (at the moment)')
+        print(angle-self.total_angle,angle,self.total_angle)
         move = angle-self.total_angle
         # Negative move corresponds to dir = False
         if move < 0 and self.dir: 
@@ -1011,6 +1013,7 @@ class MotorController_ULN2003:
         elif move == 0:
             return self.total_angle
         move = abs(move)
+        print('Move after abs: ', move)
         self.step_angle(move)
         return self.total_angle
 
@@ -1023,6 +1026,7 @@ class MotorController_ULN2003:
         Steps just under the angle specified, 
         returns actual angle stepped
         """
+        print('Steps For angle: ', angle//self.deg_per_step)
         steps = angle//self.deg_per_step
         self.step(step_count=int(steps))
         if self.dir:
