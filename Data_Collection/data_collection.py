@@ -13,6 +13,8 @@ from PIL import Image
 import tarfile
 import subprocess
 import json
+import RPi.GPIO as GPIO
+import sys
 
 try:
     import asi
@@ -101,7 +103,6 @@ def main():
 
     motor_azi_bool = False
     if hasattr(config, 'MotorAzi'):
-        import RPi.GPIO as GPIO
         print('Initiating Motor')
         motor_azi = MotorController_ULN2003(gpio = [int(config.MotorAzi['ms1']),int(config.MotorAzi['ms2']),int(config.MotorAzi['ms3']),int(config.MotorAzi['ms4'])])
         # Variable to check later if this is required
@@ -670,7 +671,11 @@ class Camera_Handler_picamera:
             if pass_meta is not None:
                 for i in pass_meta:
                     dicti[i] = pass_meta[i]
+            # Add comma and newline so file can be read easier (i.e. if one wants to write own function remove first and last char of file just split \n remove the last char per line and json laods each line)
+            convert_file.write(',\n')
+            # Dump object
             convert_file.write(json.dumps(dicti))
+            # Close list
             convert_file.write(']')
 
         request.save_dng(im_name)
@@ -875,23 +880,24 @@ class File_Handler:
         self.img_path = os.path.join(path_conf["FILE_SAVE"], now.strftime("%Y%m%d"))
         img_path = self.img_path
         # Logger set after directory created
-        if not os.path.isdir(img_path) or len(os.listdir(img_path))==0:
-            if not os.path.isdir(img_path):
-                os.mkdir(img_path)
-            ROOTLOGGER.info("Created save directory: {}".format(img_path))
-        else:
-            # Alternative handling if folder exists
-            if len(os.listdir(img_path))>0:
-                img_path = img_path+"_2"
-                self.img_path = img_path
-                if os.path.isdir(img_path):
-                    raise Exception('Pipeline failed twice, investigate issue!')
-                os.mkdir(img_path)
-                with open(os.path.join(img_path,"dir_exists.txt"), 'w') as warn_file:
-                    warn_file.write("Date directory existed already, using this directory to keep images from seperate runs seperated")
-                    ROOTLOGGER.warning("File directory already exists: Using _2 directory")
+        if not DEBUG:
+            if not os.path.isdir(img_path) or len(os.listdir(img_path))==0:
+                if not os.path.isdir(img_path):
+                    os.mkdir(img_path)
+                ROOTLOGGER.info("Created save directory: {}".format(img_path))
             else:
-                pass
+                # Alternative handling if folder exists
+                if len(os.listdir(img_path))>0:
+                    img_path = img_path+"_2"
+                    self.img_path = img_path
+                    if os.path.isdir(img_path):
+                        raise Exception('Pipeline failed twice, investigate issue!')
+                    os.mkdir(img_path)
+                    with open(os.path.join(img_path,"dir_exists.txt"), 'w') as warn_file:
+                        warn_file.write("Date directory existed already, using this directory to keep images from seperate runs seperated")
+                        ROOTLOGGER.warning("File directory already exists: Using _2 directory")
+                else:
+                    pass
         # Change path to download images into correct folder
         os.chdir(img_path)
         ROOTLOGGER.info("Changed working directory to {}".format(img_path))
@@ -983,6 +989,14 @@ class MotorController_ULN2003:
                     self.total_angle = float(cont)
                 else:
                     pass
+        # We attempt to write to the file to check it has the right permissions, this will result in error if it doesnt
+        try:
+            with open(os.path.join('/home', self.name+'.curr_rot'),'w') as f:
+                f.write(str(self.total_angle))
+        except Exception as e:
+            print(e)
+            print('The curr rotation value file has the wrong permissions! Fix it (chmod a+rwx fpath) then restart')
+            sys.exit(0)
 
         pass
 
