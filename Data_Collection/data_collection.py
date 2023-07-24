@@ -880,13 +880,13 @@ class File_Handler:
         self.img_path = os.path.join(path_conf["FILE_SAVE"], now.strftime("%Y%m%d"))
         img_path = self.img_path
         # Logger set after directory created
-        if not DEBUG:
-            if not os.path.isdir(img_path) or len(os.listdir(img_path))==0:
-                if not os.path.isdir(img_path):
-                    os.mkdir(img_path)
-                ROOTLOGGER.info("Created save directory: {}".format(img_path))
-            else:
-                # Alternative handling if folder exists
+        if not os.path.isdir(img_path) or len(os.listdir(img_path))==0:
+            if not os.path.isdir(img_path):
+                os.mkdir(img_path)
+            ROOTLOGGER.info("Created save directory: {}".format(img_path))
+        else:
+            # Alternative handling if folder exists
+            if not DEBUG:
                 if len(os.listdir(img_path))>0:
                     img_path = img_path+"_2"
                     self.img_path = img_path
