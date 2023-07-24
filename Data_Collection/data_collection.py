@@ -136,11 +136,14 @@ def main():
             # Booleans for later list iteration
         azi_coord_index = 0
         azi_up = True
+        print('Azi Coordinate list')
+        print(azi_coords)
 
     while datetime.datetime.now(datetime.timezone.utc)<end:
-        print('Taking image ', counter)
+        print('Starting imaging ', counter)
         ext_meta = {}
         if motor_azi_bool:
+            print('Moving to angle: {}'.format(azi_coords[azi_coord_index]))
             motor_azi.move_to_angle(azi_coords[azi_coord_index])
             #Check if iteration direction needs changing
             if azi_coords[azi_coord_index] == azi_coords[-1]:
