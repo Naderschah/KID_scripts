@@ -17,21 +17,29 @@ else
     echo "Untarring unsuccessfull\nAttempting unzipping" 
     sudo apt install -y unzip
     mv ZWO-SDK.tar.bz2 ZWO-SDK.zip
-    if  unzip ZWO-SDK.zip ; then 
+    if  unzip -o ZWO-SDK.zip ; then 
     echo "Unzip Successful"
+    echo "This is the nested version of the download so we do tar now "
+    tar -xvjf ASI_linux_mac_SDK_V1.29.tar.bz2 -C ~/ASI_linux_mac_SDK_V1.29
+    folder_name="ZWO-SDK.tar.bz2"
     else
     echo "Extracting ZWO files failed download from https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas and fix script extension" 
     return 1 2> /dev/null || exit 1
     fi
 fi
-# Get ZWO ASI dir 
+# Get ZWO ASI dir -- bash is unreadable, if its zip it should end where folder name | grep mac if it is tar gz it shoudl end on first cond else it will check for lowercase or terminate with errorcode 1
 num_file="$(ls ~ | grep ASI | grep SDK | wc -l)"
 if [ "$num_file" -eq 1 ];
     then
     folder_name="$(ls ~ | grep ASI | grep SDK)"
 else
-    num_file="$(ls ~ | grep asi | grep sdk | wc -l)"
-    if [ "$num_file" -eq 1 ];
+    if [ "$num_file" -eq 2 ];
+        then
+        num_file="$(ls ~ | grep ASI | grep SDK | grep mac | wc -l)"
+        if [ "$num_file" -eq 1 ];
+            then
+            folder_name="$(ls ~ | grep ASI | grep SDK | grep mac)"
+    elif [ "$(ls ~ | grep asi | grep sdk | wc -l)" -eq 1 ];
         then
         folder_name="$(ls ~ | grep asi | grep sdk)"
     else
@@ -50,7 +58,7 @@ sudo cp ~/$folder_name/lib/$b/libASICamera2.* /usr/local/lib
 sudo cp ~/$folder_name/lib/$b/libASICamera2.* /usr/lib 
 sudo cp ~/$folder_name/include/ASICamera2.h /usr/local/lib 
 sudo cp ~/$folder_name/include/ASICamera2.h /usr/lib 
-sudo cd ASI_linux_mac_SDK_*/lib
+cd $folder_name*/lib
 sudo install asi.rules /lib/udev/rules.d 
 
 # Install python package and requirements : Check if above still required
