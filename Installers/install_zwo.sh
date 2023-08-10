@@ -21,15 +21,35 @@ else
     echo "Unzip Successful"
     else
     echo "Extracting ZWO files failed download from https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas and fix script extension" 
+    return 1 2> /dev/null || exit 1
     fi
 fi
+# Get ZWO ASI dir 
+num_file="$(ls ~ | grep ASI | grep SDK | wc -l)"
+if [ "$num_file" -eq 1 ];
+    then
+    folder_name="$(ls ~ | grep ASI | grep SDK)"
+else
+    num_file="$(ls ~ | grep asi | grep sdk | wc -l)"
+    if [ "$num_file" -eq 1 ];
+        then
+        folder_name="$(ls ~ | grep asi | grep sdk)"
+    else
+        echo "ZWO SDK package extraction not found please check"
+        return 1 2> /dev/null || exit 1
+
+    fi
+fi
+
+
+
 # Figure out architecture
 val=$(more /proc/cpuinfo | grep model);b=${val:13:5};b=${b,,};echo "Architecture $b" 
 # Add python header files to shared package dir -- there has to be an easier way to move all the files
-sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* /usr/local/lib 
-sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* /usr/lib 
-sudo cp ~/ASI_linux_mac_SDK_V1.28/include/ASICamera2.h /usr/local/lib 
-sudo cp ~/ASI_linux_mac_SDK_V1.28/include/ASICamera2.h /usr/lib 
+sudo cp ~/$folder_name/lib/$b/libASICamera2.* /usr/local/lib 
+sudo cp ~/$folder_name/lib/$b/libASICamera2.* /usr/lib 
+sudo cp ~/$folder_name/include/ASICamera2.h /usr/local/lib 
+sudo cp ~/$folder_name/include/ASICamera2.h /usr/lib 
 sudo cd ASI_linux_mac_SDK_*/lib
 sudo install asi.rules /lib/udev/rules.d 
 
@@ -44,12 +64,12 @@ cd zwo/python
 sudo python3 setup.py install 
 
 # Doesnt look in the right dir just copy it
-sudo cp ~/ASI_linux_mac_SDK_V1.28/include/ASICamera2.h  ~/zwo/python/
-sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/
+sudo cp ~/$folder_name/include/ASICamera2.h  ~/zwo/python/
+sudo cp ~/$folder_name/lib/$b/libASICamera2.* ~/zwo/python/
 
 
-sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/build/lib.linux-armv6l-3.9/
-sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/dist/
+sudo cp ~/$folder_name/lib/$b/libASICamera2.* ~/zwo/python/build/lib.linux-armv6l-3.9/
+sudo cp ~/$folder_name/lib/$b/libASICamera2.* ~/zwo/python/dist/
 
 sudo python3 setup.py install 
 
