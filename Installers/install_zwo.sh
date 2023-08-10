@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo "Changing Working Directory to home"
+
+cd ~
 
 sudo apt update 
 sudo apt upgrade -y
@@ -7,7 +10,19 @@ sudo apt install -y git wget tar exiftool vim python3-setuptools python3-numpy s
 
 # Get SDK
 wget -O ZWO-SDK.tar.bz2 "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas"
-tar -xvjf ZWO-SDK.tar.bz2
+# Check this works, for some reason sometimes they give a tar.bz2 file and sometimes a  zip file 
+if tar -xvjf ZWO-SDK.tar.bz2 ; then
+echo "Untarring successful"
+else
+    echo "Untarring unsuccessfull\nAttempting unzipping" 
+    sudo apt install -y unzip
+    mv ZWO-SDK.tar.bz2 ZWO-SDK.zip
+    if  unzip ZWO-SDK.zip ; then 
+    echo "Unzip Successful"
+    else
+    echo "Extracting ZWO files failed download from https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas and fix script extension" 
+    fi
+fi
 # Figure out architecture
 val=$(more /proc/cpuinfo | grep model);b=${val:13:5};b=${b,,};echo "Architecture $b" 
 # Add python header files to shared package dir -- there has to be an easier way to move all the files
@@ -35,7 +50,7 @@ sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/
 
 sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/build/lib.linux-armv6l-3.9/
 sudo cp ~/ASI_linux_mac_SDK_V1.28/lib/$b/libASICamera2.* ~/zwo/python/dist/
-# And now it will work
+
 sudo python3 setup.py install 
 
 
