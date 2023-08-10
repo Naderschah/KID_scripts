@@ -20,7 +20,14 @@ else
     if  unzip -o ZWO-SDK.zip ; then 
     echo "Unzip Successful"
     echo "This is the nested version of the download so we do tar now "
-    tar -xvjf ASI_linux_mac_SDK_V1.29.tar.bz2 -C ~/ASI_linux_mac_SDK_V1.29
+    num_file="$(ls ~ | grep ASI | grep SDK | wc -l)"
+    if [ "$num_file" -eq 1 ];
+        then
+        folder_name="$(ls ~ | grep ASI | grep SDK)"
+    else
+        echo "Cant find tar.bz2 in extracted zip please check and modify script accordingly" 
+        return 1 2> /dev/null || exit 1
+    tar -xvjf "~/$folder_name/ASI_linux_mac_SDK_V1.29.tar.bz2" -C ~/ASI_linux_mac_SDK_V1.29
     folder_name="ZWO-SDK.tar.bz2"
     else
     echo "Extracting ZWO files failed download from https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas and fix script extension" 
