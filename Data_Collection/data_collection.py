@@ -162,13 +162,13 @@ def main():
         camera.capture_image_and_download(pass_meta=ext_meta)
         time.sleep(int(config.camera['Image_Frequency'])*60)
         counter += 1
-    ROOTLOGGER.info('Total number of images ', counter)
+    ROOTLOGGER.info('Total number of images {}'.format(counter))
     # The below is for cameras that require closing at the end of the night
     camera.finish()
     # Now we also compress the created data
     with tarfile.open(file_handler.img_path.split('/')[-1]+'.tar.gz', "w:gz") as tar:
         tar.add(file_handler.img_path, arcname=os.path.basename(file_handler.img_path))
-    os.remove(file_handler.img_path)
+    #os.remove(file_handler.img_path)
     main()
 
     
