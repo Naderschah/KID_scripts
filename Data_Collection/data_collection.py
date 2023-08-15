@@ -88,8 +88,7 @@ def main():
     
     config = Config_Handler(path=config_path)
 
-    # Sets up folder for night and switches directory
-    file_handler = File_Handler(config.paths)
+    
     # Set up camera control - each init will check the correct camera and brand is 
     if config.camera['Brand'] in ["Canon", "Nikon"]: # Add the other ones if required
         ROOTLOGGER.info("Using gphoto2 as backend")
@@ -139,7 +138,10 @@ def main():
         azi_up = True
         print('Azi Coordinate list')
         print(azi_coords)
-
+    
+    
+    # Sets up folder for night and switches directory -- moved here in case cleanup is done throughout the day
+    file_handler = File_Handler(config.paths)
     while datetime.datetime.now(datetime.timezone.utc)<end:
         print('Starting imaging ', counter)
         ext_meta = {}
