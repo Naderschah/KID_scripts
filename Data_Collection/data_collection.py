@@ -276,8 +276,12 @@ class Camera_Hanlder_ZWO: # FIXME: Autmatic Dark Subtraction - trial what it doe
             asi.ASISetControlValue(self.info.CameraID,key, int(config_subset[key]), asi.ASI_FALSE)
         
         if auto_exp:
+            # Sets AutoExpMaxGain to some random number cause i dont know the maximum
+            asi.ASISetControlValue(self.info.CameraID, 10, 10, asi.ASI_TRUE)
+            # Sets AutoExpMaxExpMS to maximum of 1000s == 1000000 mus
+            asi.ASISetControlValue(self.info.CameraID, 11, 1000000, asi.ASI_TRUE)
             # Sets AutoExpTargetBrightness to 100
-            asi.ASISetControlValue(self.info.CameraID, 12, 100, asi.ASI_TRUE)
+            asi.ASISetControlValue(self.info.CameraID, 12, 2000, asi.ASI_TRUE)
             # Set autoadjust exposure -> Value doesnt matter will be autoadjusted later
             asi.ASISetControlValue(self.info.CameraID, 1, 100, asi.ASI_TRUE)
             # Run twice, doesnt always take if run once
