@@ -2,6 +2,7 @@ import configparser as cfg
 import subprocess
 import os
 import datetime
+# pip library module to determine sunrise suntime - think civil but ont sure defenitely not astronomical 
 import suntime
 import copy
 import time
@@ -9,38 +10,163 @@ import logging
 import re
 import time
 import numpy as np
+# Image handling -- can handle images with bit depth larger than 8 -- note python only supports 8 and 16 so arrays will prob be saved with 16 but actual depth will be different -- just chekc max vals on well exposed image or make one way overexposed one and check what max val is to determine
 from PIL import Image
 import tarfile
 import subprocess
 import json
+# To interface with the raspberries gpio pins
 import RPi.GPIO as GPIO
 import sys
 
-try:
+try: # ASI ZWO SDK library python SWIG port 
     import asi
 except:
     pass
 
-try:
+try: # picamra backend should never go to except cause part of raspbian for a few years now 
     from picamera2 import Picamera2, Preview, Controls
     from libcamera import controls
 except:
     pass
+# Change to false for actual imaging, true to ignore imaging times and jsut start 
+DEBUG = False
 
-"""Class that handles camera control, i.e. image taking 
-Below is a list of backends and camera combinations that are to be used 
-    gphoto2 (http://www.gphoto.org/proj/libgphoto2/support.php):
-Canon 6D
-Canon RP
-    Note that for this backend I will not be using the python ported library but simply will execute the CMD line from within python
 
-The config file is expected to be called config.ini in the same directory as this file
-As long as config is in it and it ends in ini it is recognized
+"""
+The config file  for imaging is expected to be called have config in its name 
+and end in .ini while being in the same directory as this script file
+As long as config is in it and it ends in ini it is recognized (first occurance selected)
+
+DEBUG parameter tells the script to not wait for nighttime but just start imaging
+
+When running a logfile will be created in working_dir/logs/YYmmdd.log 
+I am not sure if this works realibly python logging is always hacky from my experience
+So most things are also printed to stdout which if run with teh cronjob will be redirected to ~/Imageing_Output.txt
+
+I will now outline the generic pattern of the code by which it operates, after I will give  an overview of the individual class structures
+I did not make one parent class as all backends require their own little ideas but there are some methods new classes muyst implement to be compatible with the code
+
+Global declaration:
+Logging:
+    First directory parsing to create the logger and creates relevant directories
+    The logger object is ROOTLOGGER with file interface fileHandler
+
+main():
+    source config file 
+    if not named config.ini searches working directory 
+    Ends with config = Config_Handler(...) for explanation of this go to the class explanation below 
+
+    Next the correct backend handler class is selected based on camera brand 
+    - gphoto for canon/nikon (cmd line not python port)
+    - zwoasi for zwo 
+    - PiCamera2 for raspbery based cameras 
+    If the config file specifies a moving camera the motor backend is initiated
+
+    Next start and stopping times for imaging are parsed, herre the DEBUG parameter takes effect 
+
+    In a while True loop the seconds until variable start are waited on the second iteration the while loop will temrinate
+    - while True is not really required as it will always evaluate to false on the second run
+
+    If a motor is in use now a list will be created with the angles at which the camera will view
+     - simply iterated append - wanted to stay away from non pure python types (ndarray) as much as possible to avoid typing issues
+
+    Next the file handler is initiated creating the working directory -- originally did so before waiting but for some stations prefereable to create jsut before imaging 
+
+    Starts imaging loop for time < sunrise_time :: Sunrise time i think is civil but i didnt want to write the code to compute astronomical 
+
+    If motor is attached moves to relevant coordinate then calls imaging method of camera-handler class created earlier
+    
+    Then sleeps time specified by frequency parameter of config file --> note the actual imaging frequency is -> imgtime+ img_freq_conf 
+
+    At the end of the night it steps out of the loop prints total number of images 
+    
+    then makes a tarball of the images --> I was asked to leave the originals as well 
+    
+    calls the camera closing method if required 
+
+    and restarts main()
+
+main is executed in if __name__=="__main__":\n main() \n return
+
+Backend camera handlers: Camera_Handler_ZWO, Camera_Handler_gphoto, Camera_Handler_picamera
+
+Basic functions required in each  for main
+ self.__init__ : obv. sets up all the things
+ self.capture_image_and_download(pass_meta) : Pass_meta --> extra info to be passed to exif data -> used for picamera rotation otherwise ignored at the moment 
+ self.finish() : Closes all interfaces and puts camera to "sleep", jsut finishing sequence so that after restart (of anything) the class can init again
+
+All methods and variables implemented in each:
+    Camera_Handler_ZWO:
+        -var : controls :: Dict -> contains all controls associated with the camera, each object will be addded during execution each will be a swig object (C code port to python )
+        -var : error_codes :: Dict -> contains num rep and corresponding error code of the underlying C library 
+        -var : auto_exp :: Bool -> In case auto exposure should be enabled each class has this or somethin like this for internal handling
+        -method : __init__(slef,config_handler) :: ret None -> checks cameras connected and corresponds to teh one specified in the logfile, calls methods in order: set_up_camera(),get_controls(), set_controls()
+        -method : set_up_camera(self) : Opens camera stream, inits camera, sets video mode with ROI -> this was some linked behavior that doesnt make sense when read pythonically --> dont mess with it or be ready to do lots of debugging to understand
+        -method : get_controls(self) :: ret None : Grabs all control sequence swig objects  to be added to earlier defined var
+        -method : set_controls(self):: ret None : In func docstring all controls are layed out with numeric value sets them according to config file --> Jake fixed auto exp parameters consult him about it 
+        -method : auto_exp_compute_settings :: ret None : Waits for exposure to be adjusted for current working conditions 
+        -method : finish :: ret None : closes camrea interface 
+        -method : capture_image_and_download(self, timeout=100, pass_meta=None) :: ret None : Starts exposure waits for success for exposure time reached reshapes data array and saves as tiff (with bits spec by image) adds basic info into exif data with exiftools 
+    Camera_Handler_gphoto -- no real closing and opening happening it just kind of is on all the time 
+      Also this isnt used we use the germans scripts
+        -method : __init__ : Grabs all parameters required from config, grabs camrea configuration sets all config  from connected camera szstems prints all to logfile 
+        -method : find_camera: verifies config file entrz with data from connected camera 
+        -method : capture_image_and_download(self,pass_meta) : runs gphoto2 --capture-image-and-download with subprocess -- checks output -- blocking
+        -method : get_camera_config : runs gphoto2 --list-all-config and parses the output adds this to self.internal_config
+        -method : set_all_config_entries(config_dict) : Sets all config entries found in config_dict
+        -method : set_config_entry(self,entry,value) : Appleis individual config entries - helper class for above
+        -method : finish :: As no finishing behavior is required it just passes 
+    Camera_Handler_picamera :
+        -var ctrl : dict of parameters to be set into camrea config so that the ISP doesnt mess with the images this should be the maximum possible before messing witht the tuning fiel -- something we cant avoid happening on the other two systems (or rather dont actually know if they mess with it or not)
+        -var auto_exp : If auto exposure should be used 
+        ßmethod : __init__(self, config_handler): ret None : For some reason i made it create the config_handler if not present so does what main config seatrching does
+                        - then it retrieves the tuning file for the ISP changes everzthing that modifies the images in any way so that we only get the raw data take a look at the tuning documentation to understand whats going on here 
+                        - then initializes the camera object with the tuning file (copies it over to the ISP )
+                        - set operational configuration for camera (before was board level)
+                        - retrieve oeprational parameteres : bit depth exp resolution etc
+                        - set the third level of configuration  (dont know what to call it just stuff that can be changed when the camera is operating like exposure iso and whatnot)
+        -method : set_up_camera : last line of init sets operational configuration (ISO exp whatever)
+        -method : capture_image_and_download(self, name, check_max, pass_meta ): No areguments are required most are for spectroscope extensions
+                    - starts camera : If autoexp waits until camera doesnt change exposure anymore creates apture request and blocks until data arrives, modifies metadata.json file storing each images metadata (faster than constantly using exiftools - annoying to call nonblocking as well) note the whole seek mechanic is so that the json can be quickly modified without requiring to read in the entire file 
+                    - now saves dng file (adobe digital negative - rawpy can open gimp can open darktable can open any adobe thing can open ) releases request back to camera board has optional hdr (never used caus was intended for spectroscope ) this is a shitty version essentially take a few images at different exposures and then use that the 20-80% exp valeus will be more sensitive than the others to get a bit more sensitivity at a few more ranges 
+                    - then stops camera if check_max_thresh is active it checks how much of the image has maximum valeu --- seems wrong to me now cause 255 but should be variable with bps soo: 2^bps-1
+        -method: set_controls(self,wait=True) :  Sets controls as specified by config file class also keeps track in self.ctrl then waits for changes to be recognized
+        -method: determine_exp : Determines required exposure from image and exposure used for spectroscope so not in use -- still missing things cause response nonlinear right now linear so long time to converge 
+        -method: take_bias(num_im=50, Gain=1) : Takes num_im bias images with specified gain (shortest exp possible without div null error) gain can also be list to take several for different gains
+        -method : take_darks : args num_im exp gain same as take_bias but darks
+        -method : finish : closes camera object
+
+Motor Class:
+    MotorController_ULN2003
+        - var step_sequence: sequence of signals to send for each ms pin used to locate where the current chain is and what the next pin sequence is
+        - var stp_counter : counts steps since initialization
+        - var deg_per_step : degree step conversion constant 
+        - var total_angle : like stp_counter but in degrees 
+        - var dir : bool : true is forward in step_list false is backwards
+        -method __init__ (gpio, delay=0.01, name='azi') : gpio corresponds to ms pins in order (list ), delay corresponds to the time delay between individual steps (required so that the motor actually can move) name gives name for file in /home/motor_<name>.curr_rot -- this file needs to be precreated and permissions need to be fixed
+                sets the gpio modes and general boilerplate for gpio gets total rot angle from the file if present 
+        - method : move_to_angle(self,angle) : Moves  to angle relative to zeropoint (ie rotation at which the file says 0 - this is  a stepper motor so doesnt have a rotary encoder) - note that the angle shoudl never be negative as it makes construction easier, ie when first starting the script make sure the motor is at its zeropoint 
+        - change_dir : changes direction boolean -- not really required but for oop good form
+        - step_angle : steps specified angle in current direction returns actual angle stepped due to step discretization
+        - step : steps step_count times and writes steps to file at teh end 
+
+Now to the utility classes 
+    File_Handler --- this was kind of not required
+    - method : __init__(self,path_conf)  creates the file structure path_conf corresponds to the config handlers path subsection
+            If the working directory for image saving exists it will create it with _2 if that also exists it will call sys.exit(0) saying that something is wrong, ignored in DEBUG 
+    Thats all this does, making a class was a bit overkill
+
+    Config_Handler: 
+    -method : __init__(self,path) : loads config from path, extracts into self.camera all camera related entries, checks all camera required things are present, extracts motor related things into self.MotorAzi (for motor alt a sepereate variable needs to be added here), does the same with paths, location
+    - method: load_config(self,path) : loads the config file with pythons standard library cfg library reutrns parsed content
+    -- Again could have been a function but originally though this (and file_handler) would play more dominant roles 
+
+Thats it
 """
 
-DEBUG = True
 
-
+# Logging set up
 
 ### IMPORTANT: I do not get how loggers work, I have had only inconsistent reults this may need reworking
 CODE_DIR = os.path.abspath(os.getcwd())
@@ -68,7 +194,7 @@ ROOTLOGGER.addHandler(consoleHandler)
 ROOTLOGGER.info('Created ROOTLOGGER')
 
 
-
+# All code hosted in here, run at EOF with: if __name__=='__main__'
 def main():
     # Retrieve config file
     config_path = os.path.join(CODE_DIR,'config.ini')
@@ -117,14 +243,14 @@ def main():
         end = start+datetime.timedelta(days=1)
 
     ROOTLOGGER.info('Imaging start time: {} \nImaging stop time: {}'.format(start,end))
-
+    # Wait for night 
     while datetime.datetime.now(datetime.timezone.utc)<start:
         ROOTLOGGER.info("Waiting for night")
         print("Waiting for night")
         time.sleep((start-datetime.datetime.now(datetime.timezone.utc)).total_seconds())
     ROOTLOGGER.info('Starting Imaging')
     counter = 1
-    # Generatre coordinate array
+    # Generatre coordinate array if motor connected 
     if motor_azi_bool:
         azi_coords = []
         i =0
@@ -142,9 +268,12 @@ def main():
     
     # Sets up folder for night and switches directory -- moved here in case cleanup is done throughout the day
     file_handler = File_Handler(config.paths)
+    # Start imaging
     while datetime.datetime.now(datetime.timezone.utc)<end:
         print('Starting imaging ', counter)
+        # Used to store motor ratation in exif data (or metadatafile depending on backend)
         ext_meta = {}
+        # Move motor
         if motor_azi_bool:
             print('Moving to angle: {}'.format(azi_coords[azi_coord_index]))
             motor_azi.move_to_angle(azi_coords[azi_coord_index])
@@ -160,17 +289,22 @@ def main():
                 azi_coord_index -= 1
             ext_meta['azi_angle'] = motor_azi.total_angle
             print('Motor at {} deg rotation relative to start point'.format(ext_meta['azi_angle']))
-
+        # Camera do image 
         camera.capture_image_and_download(pass_meta=ext_meta)
-        time.sleep(int(config.camera['Image_Frequency'])*60)
         counter += 1
+        # Wait for next 
+        time.sleep(int(config.camera['Image_Frequency'])*60)
+        # Repeat
     ROOTLOGGER.info('Total number of images {}'.format(counter))
     # The below is for cameras that require closing at the end of the night
     camera.finish()
     # Now we also compress the created data
     with tarfile.open(file_handler.img_path.split('/')[-1]+'.tar.gz', "w:gz") as tar:
         tar.add(file_handler.img_path, arcname=os.path.basename(file_handler.img_path))
+    # When we decide to remove original files move the tarball into the parent directory of where its at now (cause rn it lives with the images rather than above it)
+    # Then uncomment below to delte the entire image path so that the tarball is the onlything that survives
     #os.remove(file_handler.img_path)
+    # Restart
     main()
 
     
